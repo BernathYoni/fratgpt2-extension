@@ -23,19 +23,25 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 // Listen for messages from website, sidepanel, and content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('[BACKGROUND] 📨 Message received:', message.type, 'from:', sender.url || sender.tab?.url || 'unknown');
+
   // Handle auth sync from website
   if (message.type === 'SET_TOKEN') {
+    console.log('[BACKGROUND] 🔐 Setting token in storage:', message.token.substring(0, 20) + '...');
     chrome.storage.sync.set({ fratgpt_token: message.token }, () => {
+      console.log('[BACKGROUND] ✅ Token saved to chrome.storage.sync');
       sendResponse({ success: true });
     });
-    return true;
+    return true; // Keep channel open for async response
   }
 
   if (message.type === 'REMOVE_TOKEN') {
+    console.log('[BACKGROUND] 🚪 Removing token from storage');
     chrome.storage.sync.remove('fratgpt_token', () => {
+      console.log('[BACKGROUND] ✅ Token removed from chrome.storage.sync');
       sendResponse({ success: true });
     });
-    return true;
+    return true; // Keep channel open for async response
   }
 
   if (message.type === 'CAPTURE_SCREEN') {

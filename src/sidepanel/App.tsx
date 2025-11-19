@@ -37,23 +37,34 @@ function App() {
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    console.log('[SIDEPANEL] 🎬 Sidepanel mounted, loading token...');
+
     // Load token from storage
     chrome.storage.sync.get(['fratgpt_token'], (result) => {
       if (result.fratgpt_token) {
+        console.log('[SIDEPANEL] ✅ Token found in storage:', result.fratgpt_token.substring(0, 20) + '...');
         setToken(result.fratgpt_token);
+      } else {
+        console.log('[SIDEPANEL] ❌ No token in storage');
       }
     });
 
     // Listen for storage changes (token updates from website)
-    chrome.storage.onChanged.addListener((changes, namespace) => {
+    const storageListener = (changes: any, namespace: string) => {
+      console.log('[SIDEPANEL] 🔔 Storage changed in', namespace, ':', changes);
+
       if (namespace === 'sync' && changes.fratgpt_token) {
         if (changes.fratgpt_token.newValue) {
+          console.log('[SIDEPANEL] ✅ Token updated:', changes.fratgpt_token.newValue.substring(0, 20) + '...');
           setToken(changes.fratgpt_token.newValue);
         } else {
+          console.log('[SIDEPANEL] 🚪 Token removed, logging out');
           setToken(null);
         }
       }
-    });
+    };
+
+    chrome.storage.onChanged.addListener(storageListener);
 
     // Listen for snip completion
     chrome.runtime.onMessage.addListener((message) => {
