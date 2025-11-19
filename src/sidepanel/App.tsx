@@ -37,34 +37,65 @@ function App() {
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    console.log('='.repeat(80));
     console.log('[SIDEPANEL] 🎬 Sidepanel mounted, loading token...');
+    console.log('[SIDEPANEL] ⏰ Time:', new Date().toISOString());
 
     // Load token from storage
+    console.log('[SIDEPANEL] 📦 Reading from chrome.storage.sync...');
     chrome.storage.sync.get(['fratgpt_token'], (result) => {
+      console.log('[SIDEPANEL] 📦 Storage read complete');
+      console.log('[SIDEPANEL] 📦 Full result object:', result);
+      console.log('[SIDEPANEL] 📦 Keys in result:', Object.keys(result));
+
+      if (chrome.runtime.lastError) {
+        console.error('[SIDEPANEL] ❌ Error reading storage:', chrome.runtime.lastError);
+      }
+
       if (result.fratgpt_token) {
-        console.log('[SIDEPANEL] ✅ Token found in storage:', result.fratgpt_token.substring(0, 20) + '...');
+        console.log('[SIDEPANEL] ✅ Token found in storage!');
+        console.log('[SIDEPANEL] 🔑 Token preview:', result.fratgpt_token.substring(0, 20) + '...');
+        console.log('[SIDEPANEL] 🔑 Token length:', result.fratgpt_token.length);
+        console.log('[SIDEPANEL] 🔄 Setting token state...');
         setToken(result.fratgpt_token);
+        console.log('[SIDEPANEL] ✅ Token state updated');
       } else {
         console.log('[SIDEPANEL] ❌ No token in storage');
+        console.log('[SIDEPANEL] ℹ️ User needs to log in on website');
       }
     });
 
     // Listen for storage changes (token updates from website)
+    console.log('[SIDEPANEL] 🔊 Registering storage change listener...');
     const storageListener = (changes: any, namespace: string) => {
-      console.log('[SIDEPANEL] 🔔 Storage changed in', namespace, ':', changes);
+      console.log('='.repeat(80));
+      console.log('[SIDEPANEL] 🔔 STORAGE CHANGED EVENT!');
+      console.log('[SIDEPANEL] ⏰ Time:', new Date().toISOString());
+      console.log('[SIDEPANEL] 📦 Namespace:', namespace);
+      console.log('[SIDEPANEL] 📦 Full changes object:', changes);
+      console.log('[SIDEPANEL] 📦 Changes keys:', Object.keys(changes));
 
       if (namespace === 'sync' && changes.fratgpt_token) {
+        console.log('[SIDEPANEL] ✅ Detected fratgpt_token change!');
+        console.log('[SIDEPANEL] Old value:', changes.fratgpt_token.oldValue ? changes.fratgpt_token.oldValue.substring(0, 20) + '...' : 'NONE');
+        console.log('[SIDEPANEL] New value:', changes.fratgpt_token.newValue ? changes.fratgpt_token.newValue.substring(0, 20) + '...' : 'NONE');
+
         if (changes.fratgpt_token.newValue) {
-          console.log('[SIDEPANEL] ✅ Token updated:', changes.fratgpt_token.newValue.substring(0, 20) + '...');
+          console.log('[SIDEPANEL] 🔄 Updating token state with new value...');
           setToken(changes.fratgpt_token.newValue);
+          console.log('[SIDEPANEL] ✅ Token state updated - user should now be logged in!');
         } else {
           console.log('[SIDEPANEL] 🚪 Token removed, logging out');
           setToken(null);
         }
+      } else {
+        console.log('[SIDEPANEL] ℹ️ Storage change not relevant to token');
       }
+      console.log('='.repeat(80));
     };
 
     chrome.storage.onChanged.addListener(storageListener);
+    console.log('[SIDEPANEL] ✓ Storage change listener registered');
 
     // Listen for snip completion
     chrome.runtime.onMessage.addListener((message) => {

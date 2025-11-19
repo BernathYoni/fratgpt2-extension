@@ -1,4 +1,56 @@
-// Content script for snip overlay
+// Content script for snip overlay and auth sync bridge
+console.log('[CONTENT] 🚀 FratGPT content script loaded on:', window.location.href);
+console.log('[CONTENT] ⏰ Time:', new Date().toISOString());
+
+// AUTH SYNC BRIDGE: Listen for messages from website via window.postMessage
+window.addEventListener('message', (event) => {
+  // Only accept messages from same origin (fratgpt.co)
+  if (event.origin !== window.location.origin) {
+    return;
+  }
+
+  console.log('[CONTENT] 📨 Received window message:', event.data);
+
+  // Forward FRATGPT auth messages to background
+  if (event.data.type === 'FRATGPT_SET_TOKEN') {
+    console.log('[CONTENT] ✅ Token message detected, forwarding to background...');
+    console.log('[CONTENT] 🔑 Token preview:', event.data.token ? event.data.token.substring(0, 20) + '...' : 'MISSING');
+
+    chrome.runtime.sendMessage(
+      { type: 'SET_TOKEN', token: event.data.token },
+      (response) => {
+        console.log('[CONTENT] 📬 Background response:', response);
+
+        // Send response back to website
+        window.postMessage({
+          type: 'FRATGPT_AUTH_RESPONSE',
+          success: response?.success || false,
+          error: response?.error
+        }, '*');
+      }
+    );
+  }
+
+  if (event.data.type === 'FRATGPT_REMOVE_TOKEN') {
+    console.log('[CONTENT] ✅ Remove token message detected, forwarding to background...');
+
+    chrome.runtime.sendMessage(
+      { type: 'REMOVE_TOKEN' },
+      (response) => {
+        console.log('[CONTENT] 📬 Background response:', response);
+
+        // Send response back to website
+        window.postMessage({
+          type: 'FRATGPT_AUTH_RESPONSE',
+          success: response?.success || false,
+          error: response?.error
+        }, '*');
+      }
+    );
+  }
+});
+
+console.log('[CONTENT] ✅ Auth bridge initialized - ready to relay messages');
 
 let isSnipping = false;
 let overlay: HTMLDivElement | null = null;
