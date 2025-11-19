@@ -26,10 +26,7 @@ interface ChatSession {
 
 function App() {
   const [token, setToken] = useState<string | null>(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
 
   const [mode, setMode] = useState<Mode>('REGULAR');
   const [session, setSession] = useState<ChatSession | null>(null);
@@ -47,6 +44,17 @@ function App() {
       }
     });
 
+    // Listen for storage changes (token updates from website)
+    chrome.storage.onChanged.addListener((changes, namespace) => {
+      if (namespace === 'sync' && changes.fratgpt_token) {
+        if (changes.fratgpt_token.newValue) {
+          setToken(changes.fratgpt_token.newValue);
+        } else {
+          setToken(null);
+        }
+      }
+    });
+
     // Listen for snip completion
     chrome.runtime.onMessage.addListener((message) => {
       if (message.type === 'SNIP_COMPLETE') {
@@ -61,33 +69,6 @@ function App() {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
   }, [session?.messages]);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const res = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Login failed');
-      }
-
-      const data = await res.json();
-      setToken(data.token);
-      chrome.storage.sync.set({ fratgpt_token: data.token });
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleScreen = async () => {
     try {
@@ -204,35 +185,72 @@ function App() {
 
   if (!token) {
     return (
-      <div className="auth-container">
-        <div className="logo" style={{ marginBottom: '24px' }}>FratGPT 2.0</div>
-        <form className="auth-form" onSubmit={handleLogin}>
-          {error && <div className="error">{error}</div>}
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <button
-            type="submit"
-            className="btn"
-            disabled={loading}
-            style={{ background: '#2563eb', color: 'white', border: 'none' }}
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-        <p style={{ marginTop: '16px', fontSize: '13px', color: '#6b7280' }}>
-          No account? <a href="#" style={{ color: '#2563eb' }}>Sign up on web</a>
+      <div className="auth-container" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        padding: '32px',
+        textAlign: 'center'
+      }}>
+        <div className="logo" style={{ fontSize: '32px', fontWeight: 'bold', marginBottom: '24px' }}>
+          FratGPT 2.0
+        </div>
+
+        <div style={{
+          fontSize: '48px',
+          marginBottom: '24px',
+          filter: 'grayscale(0.3)'
+        }}>
+          🔒
+        </div>
+
+        <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '12px', color: '#111827' }}>
+          Not Logged In
+        </h2>
+
+        <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '24px', maxWidth: '300px', lineHeight: '1.5' }}>
+          Please log in or sign up on the FratGPT website to use the extension
+        </p>
+
+        <button
+          onClick={() => window.open('https://fratgpt.co/login', '_blank')}
+          className="btn"
+          style={{
+            background: 'linear-gradient(to right, #f97316, #eab308)',
+            color: 'white',
+            border: 'none',
+            padding: '12px 24px',
+            fontSize: '15px',
+            fontWeight: '600',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            marginBottom: '12px'
+          }}
+        >
+          Log In on Website
+        </button>
+
+        <button
+          onClick={() => window.open('https://fratgpt.co/signup', '_blank')}
+          className="btn"
+          style={{
+            background: 'transparent',
+            color: '#f97316',
+            border: '2px solid #f97316',
+            padding: '10px 24px',
+            fontSize: '15px',
+            fontWeight: '600',
+            borderRadius: '8px',
+            cursor: 'pointer'
+          }}
+        >
+          Sign Up on Website
+        </button>
+
+        <p style={{ marginTop: '24px', fontSize: '12px', color: '#9ca3af', maxWidth: '280px', lineHeight: '1.4' }}>
+          The extension will automatically sync with your website login
         </p>
       </div>
     );
