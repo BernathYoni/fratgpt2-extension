@@ -57,7 +57,7 @@ async function handleCaptureScreen(sendResponse: (response: any) => void) {
       return;
     }
 
-    const dataUrl = await chrome.tabs.captureVisibleTab(undefined, {
+    const dataUrl = await chrome.tabs.captureVisibleTab({
       format: 'png',
     });
 
@@ -77,7 +77,7 @@ async function handleCaptureSnip(coords: { x: number; y: number; width: number; 
     }
 
     // Capture full visible tab
-    const fullScreenshot = await chrome.tabs.captureVisibleTab(undefined, {
+    const fullScreenshot = await chrome.tabs.captureVisibleTab({
       format: 'png',
     });
 
