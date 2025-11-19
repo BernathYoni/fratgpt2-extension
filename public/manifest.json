@@ -11,6 +11,12 @@
   "host_permissions": [
     "<all_urls>"
   ],
+  "externally_connectable": {
+    "matches": [
+      "https://fratgpt.co/*",
+      "https://*.fratgpt.co/*"
+    ]
+  },
   "background": {
     "service_worker": "background.js"
   },

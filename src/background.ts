@@ -7,8 +7,37 @@ chrome.action.onClicked.addListener((tab) => {
   }
 });
 
-// Listen for messages from sidepanel and content script
+// Listen for storage changes (auth sync with website)
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'sync' && changes.fratgpt_token) {
+    const newToken = changes.fratgpt_token.newValue;
+    const oldToken = changes.fratgpt_token.oldValue;
+
+    // Token changed - reload sidepanel to update UI
+    if (newToken !== oldToken) {
+      console.log('Auth token changed, extension will sync on next open');
+      // The sidepanel will automatically pick up the new token on load
+    }
+  }
+});
+
+// Listen for messages from website, sidepanel, and content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Handle auth sync from website
+  if (message.type === 'SET_TOKEN') {
+    chrome.storage.sync.set({ fratgpt_token: message.token }, () => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
+  if (message.type === 'REMOVE_TOKEN') {
+    chrome.storage.sync.remove('fratgpt_token', () => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+
   if (message.type === 'CAPTURE_SCREEN') {
     handleCaptureScreen(sendResponse);
     return true; // Keep channel open for async response

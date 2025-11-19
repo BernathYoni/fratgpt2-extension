@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-const API_URL = 'http://localhost:3000'; // Update this for production
+const API_URL = 'https://api.fratgpt.co';
 
 type Mode = 'REGULAR' | 'FAST' | 'EXPERT';
 type Tab = 'consensus' | 'gemini' | 'openai' | 'claude';
