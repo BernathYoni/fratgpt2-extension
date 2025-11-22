@@ -36,6 +36,13 @@ function App() {
 
   const chatRef = useRef<HTMLDivElement>(null);
 
+  // Log mode changes
+  useEffect(() => {
+    console.log('[SIDEPANEL] 🔄 MODE CHANGED:', mode);
+    console.log('[SIDEPANEL] 📊 Current sending state:', sending);
+    console.log('[SIDEPANEL] 💼 Current session:', session?.id || 'none');
+  }, [mode]);
+
   useEffect(() => {
     console.log('='.repeat(80));
     console.log('[SIDEPANEL] 🎬 Sidepanel mounted, loading token...');
@@ -265,6 +272,9 @@ function App() {
     console.log('[SIDEPANEL] 🖼️ ImageData length:', imageData?.length || 0);
     console.log('[SIDEPANEL] 📷 Capture source:', captureSource);
     console.log('[SIDEPANEL] 🔐 Has token:', !!token);
+    console.log('[SIDEPANEL] 🎯 Current mode state:', mode);
+    console.log('[SIDEPANEL] 💼 Has session:', !!session);
+    console.log('[SIDEPANEL] 📊 Session ID:', session?.id || 'none');
 
     if (!text.trim() && !imageData) {
       console.log('[SIDEPANEL] ⚠️ No text or image, returning early');
@@ -291,9 +301,17 @@ function App() {
       };
 
       // Always include mode for new captures (snip/screen), use current mode selection
-      if (!session || imageData) {
+      const shouldIncludeMode = !session || !!imageData;
+      console.log('[SIDEPANEL] 🔍 Mode inclusion check:');
+      console.log('[SIDEPANEL]    !session:', !session);
+      console.log('[SIDEPANEL]    !!imageData:', !!imageData);
+      console.log('[SIDEPANEL]    shouldIncludeMode:', shouldIncludeMode);
+
+      if (shouldIncludeMode) {
         body.mode = mode;
-        console.log('[SIDEPANEL] 🎯 Mode:', mode);
+        console.log('[SIDEPANEL] ✅ Including mode in request:', mode);
+      } else {
+        console.log('[SIDEPANEL] ⚠️ NOT including mode (will use session mode)');
       }
 
       if (imageData) {
@@ -304,6 +322,7 @@ function App() {
 
       console.log('[SIDEPANEL] 📤 Sending fetch request...');
       console.log('[SIDEPANEL] 📦 Body keys:', Object.keys(body));
+      console.log('[SIDEPANEL] 📦 Full body (without imageData):', JSON.stringify({...body, imageData: imageData ? '[IMAGE_DATA]' : undefined}, null, 2));
 
       const res = await fetch(url, {
         method: 'POST',
