@@ -136,62 +136,117 @@ async function handleCaptureScreen(sendResponse: (response: any) => void) {
 
 async function handleCaptureSnip(coords: { x: number; y: number; width: number; height: number }, sendResponse: (response: any) => void) {
   try {
+    console.log('[BACKGROUND] 📸 Starting snip capture...');
+    console.log('[BACKGROUND] 📏 Coordinates:', JSON.stringify(coords, null, 2));
+
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab.id) {
+      console.error('[BACKGROUND] ❌ No active tab found');
       sendResponse({ error: 'No active tab' });
       return;
     }
+    console.log('[BACKGROUND] ✅ Active tab found:', tab.id);
 
     // Capture full visible tab
+    console.log('[BACKGROUND] 📸 Capturing full visible tab...');
     const fullScreenshot = await chrome.tabs.captureVisibleTab({
       format: 'png',
     });
+    console.log('[BACKGROUND] ✅ Full screenshot captured, data URL length:', fullScreenshot.length);
 
-    // Crop the image using canvas
-    const croppedImage = await cropImage(fullScreenshot, coords);
+    // Crop the image using OffscreenCanvas (works in service workers)
+    console.log('[BACKGROUND] ✂️ Starting crop operation...');
+    const croppedImage = await cropImageWithOffscreenCanvas(fullScreenshot, coords);
+    console.log('[BACKGROUND] ✅ Image cropped successfully, data URL length:', croppedImage.length);
+
     sendResponse({ imageData: croppedImage });
+    console.log('[BACKGROUND] ✅ Snip capture complete!');
   } catch (error: any) {
-    console.error('Snip capture failed:', error);
+    console.error('[BACKGROUND] ❌ SNIP CAPTURE FAILED!');
+    console.error('[BACKGROUND] ❌ Error name:', error.name);
+    console.error('[BACKGROUND] ❌ Error message:', error.message);
+    console.error('[BACKGROUND] ❌ Error stack:', error.stack);
+    console.error('[BACKGROUND] ❌ Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
     sendResponse({ error: error.message });
   }
 }
 
-function cropImage(
+// New function that works in service workers without Image constructor
+async function cropImageWithOffscreenCanvas(
   dataUrl: string,
   coords: { x: number; y: number; width: number; height: number }
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = new OffscreenCanvas(coords.width, coords.height);
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Failed to get canvas context'));
-        return;
-      }
+  console.log('[BACKGROUND] 🖼️ cropImageWithOffscreenCanvas function started');
+  console.log('[BACKGROUND] 📊 Input dataUrl length:', dataUrl.length);
+  console.log('[BACKGROUND] 📊 Input coords:', JSON.stringify(coords, null, 2));
 
-      ctx.drawImage(
-        img,
-        coords.x,
-        coords.y,
-        coords.width,
-        coords.height,
-        0,
-        0,
-        coords.width,
-        coords.height
-      );
+  try {
+    // Convert data URL to blob
+    console.log('[BACKGROUND] 🔄 Converting data URL to blob...');
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
+    console.log('[BACKGROUND] ✅ Blob created from data URL, size:', blob.size);
 
-      canvas.convertToBlob({ type: 'image/png' }).then((blob) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    };
-    img.onerror = reject;
-    img.src = dataUrl;
-  });
+    // Create ImageBitmap from blob (works in service workers!)
+    console.log('[BACKGROUND] 🖼️ Creating ImageBitmap from blob...');
+    const imageBitmap = await createImageBitmap(blob);
+    console.log('[BACKGROUND] ✅ ImageBitmap created, dimensions:', imageBitmap.width, 'x', imageBitmap.height);
+
+    // Create OffscreenCanvas with cropped dimensions
+    console.log('[BACKGROUND] 🎨 Creating OffscreenCanvas with dimensions:', coords.width, 'x', coords.height);
+    const canvas = new OffscreenCanvas(coords.width, coords.height);
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      throw new Error('Failed to get 2d context from OffscreenCanvas');
+    }
+    console.log('[BACKGROUND] ✅ Canvas context obtained');
+
+    // Draw the cropped portion
+    console.log('[BACKGROUND] ✂️ Drawing cropped portion to canvas...');
+    console.log('[BACKGROUND] 📐 Source rect: x=' + coords.x + ', y=' + coords.y + ', w=' + coords.width + ', h=' + coords.height);
+    console.log('[BACKGROUND] 📐 Dest rect: x=0, y=0, w=' + coords.width + ', h=' + coords.height);
+
+    ctx.drawImage(
+      imageBitmap,
+      coords.x,      // source x
+      coords.y,      // source y
+      coords.width,  // source width
+      coords.height, // source height
+      0,             // dest x
+      0,             // dest y
+      coords.width,  // dest width
+      coords.height  // dest height
+    );
+    console.log('[BACKGROUND] ✅ Image drawn to canvas');
+
+    // Convert canvas to blob
+    console.log('[BACKGROUND] 💾 Converting canvas to blob...');
+    const croppedBlob = await canvas.convertToBlob({ type: 'image/png' });
+    console.log('[BACKGROUND] ✅ Cropped blob created, size:', croppedBlob.size);
+
+    // Convert blob to data URL
+    console.log('[BACKGROUND] 📖 Converting blob to data URL...');
+    const reader = new FileReader();
+    const dataUrlPromise = new Promise<string>((resolve, reject) => {
+      reader.onloadend = () => {
+        console.log('[BACKGROUND] ✅ Data URL created successfully');
+        resolve(reader.result as string);
+      };
+      reader.onerror = () => {
+        console.error('[BACKGROUND] ❌ FileReader error');
+        reject(new Error('Failed to read blob as data URL'));
+      };
+    });
+
+    reader.readAsDataURL(croppedBlob);
+    return await dataUrlPromise;
+
+  } catch (error: any) {
+    console.error('[BACKGROUND] ❌ Error in cropImageWithOffscreenCanvas:', error);
+    console.error('[BACKGROUND] ❌ Error stack:', error.stack);
+    throw error;
+  }
 }
 
 console.log('='.repeat(80));

@@ -1,6 +1,9 @@
 // Content script for snip overlay and auth sync bridge
+console.log('='.repeat(80));
 console.log('[CONTENT] 🚀 FratGPT content script loaded on:', window.location.href);
 console.log('[CONTENT] ⏰ Time:', new Date().toISOString());
+console.log('[CONTENT] 📍 Document ready state:', document.readyState);
+console.log('='.repeat(80));
 
 // AUTH SYNC BRIDGE: Listen for messages from website via window.postMessage
 window.addEventListener('message', (event) => {
@@ -59,23 +62,44 @@ let startY = 0;
 let selectionBox: HTMLDivElement | null = null;
 
 // Listen for messages from sidepanel
+console.log('[CONTENT] 🔊 Registering message listener...');
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('[CONTENT] 📨 Message received:', message);
+  console.log('[CONTENT] 👤 Sender:', sender);
+
   if (message.type === 'START_SNIP') {
+    console.log('[CONTENT] ✅ START_SNIP message received, starting snip mode...');
     startSnipMode();
     sendResponse({ success: true });
+    console.log('[CONTENT] ✅ Response sent');
+    return true;
   }
 
   if (message.type === 'CANCEL_SNIP') {
+    console.log('[CONTENT] ✅ CANCEL_SNIP message received, canceling snip mode...');
     cancelSnipMode();
     sendResponse({ success: true });
+    console.log('[CONTENT] ✅ Response sent');
+    return true;
   }
+
+  console.log('[CONTENT] ⚠️ Unknown message type:', message.type);
 });
+console.log('[CONTENT] ✅ Message listener registered');
 
 function startSnipMode() {
-  if (isSnipping) return;
+  console.log('[CONTENT] 🎬 startSnipMode function called');
+  console.log('[CONTENT] 📊 Current isSnipping state:', isSnipping);
+
+  if (isSnipping) {
+    console.log('[CONTENT] ⚠️ Already snipping, returning');
+    return;
+  }
   isSnipping = true;
+  console.log('[CONTENT] ✅ Set isSnipping = true');
 
   // Create overlay
+  console.log('[CONTENT] 🎨 Creating overlay element...');
   overlay = document.createElement('div');
   overlay.style.cssText = `
     position: fixed;
@@ -98,10 +122,14 @@ function startSnipMode() {
     z-index: 2147483648;
   `;
 
+  console.log('[CONTENT] 📎 Appending overlay to document.body...');
   document.body.appendChild(overlay);
+  console.log('[CONTENT] 📎 Appending selectionBox to document.body...');
   document.body.appendChild(selectionBox);
+  console.log('[CONTENT] ✅ Elements appended to DOM');
 
   // Add event listeners
+  console.log('[CONTENT] 🎧 Adding event listeners...');
   overlay.addEventListener('mousedown', handleMouseDown);
   overlay.addEventListener('mousemove', handleMouseMove);
   overlay.addEventListener('mouseup', handleMouseUp);
@@ -112,6 +140,8 @@ function startSnipMode() {
 
   // Add ESC key listener
   document.addEventListener('keydown', handleKeyDown);
+  console.log('[CONTENT] ✅ Event listeners added');
+  console.log('[CONTENT] 🎉 Snip mode started successfully! You can now select an area.');
 }
 
 function handleMouseDown(e: MouseEvent) {
@@ -152,8 +182,12 @@ function handleMouseUp(e: MouseEvent) {
   const width = Math.abs(currentX - startX);
   const height = Math.abs(currentY - startY);
 
+  console.log('[CONTENT] 🖱️ Mouse up event');
+  console.log('[CONTENT] 📏 Selection width:', width, 'height:', height);
+
   // Minimum selection size
   if (width < 10 || height < 10) {
+    console.log('[CONTENT] ⚠️ Selection too small, canceling');
     cancelSnipMode();
     return;
   }
@@ -161,17 +195,24 @@ function handleMouseUp(e: MouseEvent) {
   const left = Math.min(currentX, startX);
   const top = Math.min(currentY, startY);
 
+  const coords = {
+    x: left * window.devicePixelRatio,
+    y: top * window.devicePixelRatio,
+    width: width * window.devicePixelRatio,
+    height: height * window.devicePixelRatio,
+  };
+
+  console.log('[CONTENT] 📐 Final coordinates (with device pixel ratio):', JSON.stringify(coords, null, 2));
+  console.log('[CONTENT] 📱 Device pixel ratio:', window.devicePixelRatio);
+  console.log('[CONTENT] 📤 Sending SNIP_COMPLETE message to sidepanel...');
+
   // Send coordinates to background
   chrome.runtime.sendMessage({
     type: 'SNIP_COMPLETE',
-    coords: {
-      x: left * window.devicePixelRatio,
-      y: top * window.devicePixelRatio,
-      width: width * window.devicePixelRatio,
-      height: height * window.devicePixelRatio,
-    },
+    coords: coords,
   });
 
+  console.log('[CONTENT] ✅ SNIP_COMPLETE message sent');
   cancelSnipMode();
 }
 
@@ -198,4 +239,8 @@ function cancelSnipMode() {
   document.removeEventListener('keydown', handleKeyDown);
 }
 
-console.log('FratGPT content script loaded');
+console.log('='.repeat(80));
+console.log('[CONTENT] 🎉 FratGPT content script fully initialized!');
+console.log('[CONTENT] 📋 Available commands: START_SNIP, CANCEL_SNIP');
+console.log('[CONTENT] 🔍 Ready to receive messages from sidepanel');
+console.log('='.repeat(80));
