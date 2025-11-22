@@ -96,14 +96,31 @@ function App() {
 
     chrome.storage.onChanged.addListener(storageListener);
     console.log('[SIDEPANEL] ✓ Storage change listener registered');
+  }, []);
 
-    // Listen for snip completion
-    chrome.runtime.onMessage.addListener((message) => {
+  // Listen for snip completion - separate useEffect so it has access to current token
+  useEffect(() => {
+    console.log('[SIDEPANEL] 🔊 Setting up message listener with current token state...');
+    console.log('[SIDEPANEL] 🔐 Token available:', !!token);
+
+    const messageListener = (message: any) => {
+      console.log('[SIDEPANEL] 📨 Message received in listener:', message);
       if (message.type === 'SNIP_COMPLETE') {
+        console.log('[SIDEPANEL] ✅ SNIP_COMPLETE message detected!');
+        console.log('[SIDEPANEL] 🔐 Token in closure:', !!token);
         handleSnipComplete(message.coords);
       }
-    });
-  }, []);
+    };
+
+    chrome.runtime.onMessage.addListener(messageListener);
+    console.log('[SIDEPANEL] ✅ Message listener registered');
+
+    // Cleanup
+    return () => {
+      console.log('[SIDEPANEL] 🧹 Removing message listener');
+      chrome.runtime.onMessage.removeListener(messageListener);
+    };
+  }, [token]); // Re-register when token changes to capture new token in closure
 
   useEffect(() => {
     // Scroll to bottom when messages change
@@ -132,38 +149,133 @@ function App() {
 
   const handleSnip = async () => {
     try {
-      // Start snip mode in content script
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab.id) return;
+      console.log('[SIDEPANEL] 🎯 handleSnip called - starting snip mode');
 
-      await chrome.tabs.sendMessage(tab.id, { type: 'START_SNIP' });
-    } catch (error) {
-      alert('Failed to start snip mode');
+      // Get active tab
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      console.log('[SIDEPANEL] 📑 Active tab:', tab);
+
+      if (!tab.id) {
+        console.error('[SIDEPANEL] ❌ No tab ID found');
+        alert('Failed to start snip mode: No active tab');
+        return;
+      }
+
+      console.log('[SIDEPANEL] ✅ Tab ID:', tab.id);
+      console.log('[SIDEPANEL] 🌐 Tab URL:', tab.url);
+
+      // Check if we can access this tab (some pages like chrome:// are restricted)
+      if (tab.url?.startsWith('chrome://') || tab.url?.startsWith('chrome-extension://')) {
+        console.error('[SIDEPANEL] ❌ Cannot inject into chrome:// or extension pages');
+        alert('Cannot use snip mode on this page. Please try on a regular website.');
+        return;
+      }
+
+      console.log('[SIDEPANEL] 📤 Sending START_SNIP message to tab', tab.id);
+
+      // Try to send message to content script
+      chrome.tabs.sendMessage(tab.id, { type: 'START_SNIP' }, (response) => {
+        const lastError = chrome.runtime.lastError;
+
+        if (lastError) {
+          console.error('[SIDEPANEL] ❌ Error sending message:', lastError);
+          console.error('[SIDEPANEL] ❌ Error message:', lastError.message);
+          console.log('[SIDEPANEL] 🔄 Content script may not be injected yet, trying to inject...');
+
+          // Content script not loaded - try to inject it programmatically
+          chrome.scripting.executeScript({
+            target: { tabId: tab.id! },
+            files: ['content.js']
+          }, () => {
+            const injectionError = chrome.runtime.lastError;
+            if (injectionError) {
+              console.error('[SIDEPANEL] ❌ Failed to inject content script:', injectionError);
+              alert('Failed to start snip mode: Could not inject content script. Error: ' + injectionError.message);
+            } else {
+              console.log('[SIDEPANEL] ✅ Content script injected, retrying START_SNIP...');
+              // Wait a bit for script to initialize
+              setTimeout(() => {
+                chrome.tabs.sendMessage(tab.id!, { type: 'START_SNIP' }, (retryResponse) => {
+                  if (chrome.runtime.lastError) {
+                    console.error('[SIDEPANEL] ❌ Still failed after injection:', chrome.runtime.lastError);
+                    alert('Failed to start snip mode even after injection: ' + chrome.runtime.lastError.message);
+                  } else {
+                    console.log('[SIDEPANEL] ✅ START_SNIP sent successfully after injection');
+                  }
+                });
+              }, 100);
+            }
+          });
+        } else {
+          console.log('[SIDEPANEL] ✅ START_SNIP message sent successfully');
+          console.log('[SIDEPANEL] 📬 Response:', response);
+        }
+      });
+    } catch (error: any) {
+      console.error('[SIDEPANEL] ❌ Exception in handleSnip:');
+      console.error('[SIDEPANEL] ❌ Error name:', error?.name);
+      console.error('[SIDEPANEL] ❌ Error message:', error?.message);
+      console.error('[SIDEPANEL] ❌ Error stack:', error?.stack);
+      alert('Failed to start snip mode: ' + (error?.message || 'Unknown error'));
     }
   };
 
   const handleSnipComplete = async (coords: any) => {
     try {
+      console.log('[SIDEPANEL] 📸 handleSnipComplete called');
+      console.log('[SIDEPANEL] 📏 Coordinates:', JSON.stringify(coords, null, 2));
+      console.log('[SIDEPANEL] 📤 Sending CAPTURE_SNIP message to background...');
+
       const response: any = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({ type: 'CAPTURE_SNIP', coords }, resolve);
+        chrome.runtime.sendMessage({ type: 'CAPTURE_SNIP', coords }, (response) => {
+          console.log('[SIDEPANEL] 📬 Received response from background:', response);
+          resolve(response);
+        });
       });
 
+      console.log('[SIDEPANEL] 🔍 Checking response...');
       if (response.error) {
+        console.error('[SIDEPANEL] ❌ Error in response:', response.error);
         alert('Failed to capture snip: ' + response.error);
         return;
       }
 
+      console.log('[SIDEPANEL] ✅ Snip captured successfully!');
+      console.log('[SIDEPANEL] 📊 Image data length:', response.imageData?.length || 0);
+      console.log('[SIDEPANEL] 💬 Setting input and sending message...');
+
       setInput((prev) => prev || 'Solve this problem');
       await sendMessage(input || 'Solve this problem', response.imageData, 'SNIP');
-    } catch (error) {
-      alert('Failed to capture snip');
+
+      console.log('[SIDEPANEL] ✅ Message sent successfully!');
+    } catch (error: any) {
+      console.error('[SIDEPANEL] ❌ SNIP FAILED - Exception caught:');
+      console.error('[SIDEPANEL] ❌ Error name:', error?.name);
+      console.error('[SIDEPANEL] ❌ Error message:', error?.message);
+      console.error('[SIDEPANEL] ❌ Error stack:', error?.stack);
+      console.error('[SIDEPANEL] ❌ Full error:', error);
+      alert('Failed to capture snip: ' + (error?.message || 'Unknown error'));
     }
   };
 
   const sendMessage = async (text: string, imageData?: string, captureSource?: string) => {
-    if (!text.trim() && !imageData) return;
-    if (!token) return;
+    console.log('[SIDEPANEL] 📨 sendMessage called');
+    console.log('[SIDEPANEL] 📝 Text:', text);
+    console.log('[SIDEPANEL] 🖼️ Has imageData:', !!imageData);
+    console.log('[SIDEPANEL] 🖼️ ImageData length:', imageData?.length || 0);
+    console.log('[SIDEPANEL] 📷 Capture source:', captureSource);
+    console.log('[SIDEPANEL] 🔐 Has token:', !!token);
 
+    if (!text.trim() && !imageData) {
+      console.log('[SIDEPANEL] ⚠️ No text or image, returning early');
+      return;
+    }
+    if (!token) {
+      console.log('[SIDEPANEL] ⚠️ No token, returning early');
+      return;
+    }
+
+    console.log('[SIDEPANEL] 🚀 Starting message send...');
     setSending(true);
     setError('');
 
@@ -172,18 +284,26 @@ function App() {
         ? `${API_URL}/chat/${session.id}/message`
         : `${API_URL}/chat/start`;
 
+      console.log('[SIDEPANEL] 🌐 API URL:', url);
+
       const body: any = {
         message: text,
       };
 
-      if (!session) {
+      // Always include mode for new captures (snip/screen), use current mode selection
+      if (!session || imageData) {
         body.mode = mode;
+        console.log('[SIDEPANEL] 🎯 Mode:', mode);
       }
 
       if (imageData) {
         body.imageData = imageData;
         body.captureSource = captureSource;
+        console.log('[SIDEPANEL] ✅ Added imageData and captureSource to request body');
       }
+
+      console.log('[SIDEPANEL] 📤 Sending fetch request...');
+      console.log('[SIDEPANEL] 📦 Body keys:', Object.keys(body));
 
       const res = await fetch(url, {
         method: 'POST',
@@ -194,22 +314,42 @@ function App() {
         body: JSON.stringify(body),
       });
 
+      console.log('[SIDEPANEL] 📬 Response status:', res.status);
+      console.log('[SIDEPANEL] 📬 Response ok:', res.ok);
+
       if (!res.ok) {
+        console.error('[SIDEPANEL] ❌ Response not ok');
         const error = await res.json();
+        console.error('[SIDEPANEL] ❌ Error response:', error);
+
         if (error.code === 'DAILY_LIMIT_REACHED') {
-          setError(`Daily limit reached! Upgrade to ${error.plan === 'FREE' ? 'Basic or Pro' : 'Pro'} for more solves.`);
+          const errorMsg = `Daily limit reached! Upgrade to ${error.plan === 'FREE' ? 'Basic or Pro' : 'Pro'} for more solves.`;
+          console.error('[SIDEPANEL] ❌ Daily limit:', errorMsg);
+          setError(errorMsg);
         } else {
+          console.error('[SIDEPANEL] ❌ Other error:', error.error);
           throw new Error(error.error || 'Request failed');
         }
         return;
       }
 
+      console.log('[SIDEPANEL] ✅ Request successful, parsing response...');
       const data = await res.json();
+      console.log('[SIDEPANEL] ✅ Response data received');
+      console.log('[SIDEPANEL] 📊 Session ID:', data.id);
+      console.log('[SIDEPANEL] 📊 Messages count:', data.messages?.length || 0);
+
       setSession(data);
       setInput('');
+      console.log('[SIDEPANEL] ✅ Message send complete!');
     } catch (err: any) {
+      console.error('[SIDEPANEL] ❌ Exception in sendMessage:');
+      console.error('[SIDEPANEL] ❌ Error:', err);
+      console.error('[SIDEPANEL] ❌ Error message:', err.message);
+      console.error('[SIDEPANEL] ❌ Error stack:', err.stack);
       setError(err.message);
     } finally {
+      console.log('[SIDEPANEL] 🏁 Finally block - setting sending to false');
       setSending(false);
     }
   };
@@ -307,21 +447,21 @@ function App() {
           <button
             className={`mode-btn ${mode === 'FAST' ? 'active' : ''}`}
             onClick={() => setMode('FAST')}
-            disabled={!!session}
+            disabled={sending}
           >
             Fast
           </button>
           <button
             className={`mode-btn ${mode === 'REGULAR' ? 'active' : ''}`}
             onClick={() => setMode('REGULAR')}
-            disabled={!!session}
+            disabled={sending}
           >
             Regular
           </button>
           <button
             className={`mode-btn ${mode === 'EXPERT' ? 'active' : ''}`}
             onClick={() => setMode('EXPERT')}
-            disabled={!!session}
+            disabled={sending}
           >
             Expert
           </button>
