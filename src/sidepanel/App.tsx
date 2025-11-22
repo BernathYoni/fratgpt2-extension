@@ -33,6 +33,7 @@ function App() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [selectedTab, setSelectedTab] = useState<Tab>('consensus');
+  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
 
   const chatRef = useRef<HTMLDivElement>(null);
 
@@ -142,7 +143,7 @@ function App() {
     if (chatRef.current) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
-  }, [session?.messages]);
+  }, [session?.messages, optimisticMessages]);
 
   const handleScreen = async () => {
     try {
@@ -155,10 +156,31 @@ function App() {
         return;
       }
 
-      setInput((prev) => prev || 'Solve this problem');
+      // Add optimistic user message immediately
+      const userMessage: Message = {
+        id: `temp-user-${Date.now()}`,
+        role: 'USER',
+        content: input || 'Solve this problem',
+        attachments: [{
+          imageData: response.imageData,
+          source: 'SCREEN'
+        }]
+      };
+
+      // Add thinking message
+      const thinkingMessage: Message = {
+        id: `temp-thinking-${Date.now()}`,
+        role: 'ASSISTANT',
+        content: 'Thinking...',
+      };
+
+      setOptimisticMessages([userMessage, thinkingMessage]);
+      setInput('');
+
       await sendMessage(input || 'Solve this problem', response.imageData, 'SCREEN');
     } catch (error) {
       alert('Failed to capture screen');
+      setOptimisticMessages([]);
     }
   };
 
@@ -257,9 +279,29 @@ function App() {
 
       console.log('[SIDEPANEL] ✅ Snip captured successfully!');
       console.log('[SIDEPANEL] 📊 Image data length:', response.imageData?.length || 0);
-      console.log('[SIDEPANEL] 💬 Setting input and sending message...');
+      console.log('[SIDEPANEL] 💬 Adding optimistic messages and sending...');
 
-      setInput((prev) => prev || 'Solve this problem');
+      // Add optimistic user message immediately
+      const userMessage: Message = {
+        id: `temp-user-${Date.now()}`,
+        role: 'USER',
+        content: input || 'Solve this problem',
+        attachments: [{
+          imageData: response.imageData,
+          source: 'SNIP'
+        }]
+      };
+
+      // Add thinking message
+      const thinkingMessage: Message = {
+        id: `temp-thinking-${Date.now()}`,
+        role: 'ASSISTANT',
+        content: 'Thinking...',
+      };
+
+      setOptimisticMessages([userMessage, thinkingMessage]);
+      setInput('');
+
       await sendMessage(input || 'Solve this problem', response.imageData, 'SNIP');
 
       console.log('[SIDEPANEL] ✅ Message sent successfully!');
@@ -270,6 +312,7 @@ function App() {
       console.error('[SIDEPANEL] ❌ Error stack:', error?.stack);
       console.error('[SIDEPANEL] ❌ Full error:', error);
       alert('Failed to capture snip: ' + (error?.message || 'Unknown error'));
+      setOptimisticMessages([]);
     }
   };
 
@@ -366,6 +409,8 @@ function App() {
       console.log('[SIDEPANEL] 📊 Session ID:', data.id);
       console.log('[SIDEPANEL] 📊 Messages count:', data.messages?.length || 0);
 
+      // Clear optimistic messages and show real response
+      setOptimisticMessages([]);
       setSession(data);
       setInput('');
       console.log('[SIDEPANEL] ✅ Message send complete!');
@@ -375,6 +420,7 @@ function App() {
       console.error('[SIDEPANEL] ❌ Error message:', err.message);
       console.error('[SIDEPANEL] ❌ Error stack:', err.stack);
       setError(err.message);
+      setOptimisticMessages([]);
     } finally {
       console.log('[SIDEPANEL] 🏁 Finally block - setting sending to false');
       setSending(false);
@@ -507,13 +553,14 @@ function App() {
       <div className="chat-container" ref={chatRef}>
         {error && <div className="error">{error}</div>}
 
-        {!session && (
+        {!session && optimisticMessages.length === 0 && (
           <div className="empty-state">
             <h3>Welcome to FratGPT!</h3>
             <p>Select a mode and start solving homework</p>
           </div>
         )}
 
+        {/* Render real messages from session */}
         {session?.messages.map((msg, idx) => (
           <div key={idx} className={`message ${msg.role.toLowerCase()}`}>
             {msg.attachments?.map((att, i) => (
@@ -586,7 +633,21 @@ function App() {
           </div>
         ))}
 
-        {sending && <div className="loading">Thinking...</div>}
+        {/* Render optimistic messages (user message + thinking) */}
+        {optimisticMessages.map((msg, idx) => (
+          <div key={msg.id} className={`message ${msg.role.toLowerCase()}`}>
+            {msg.attachments?.map((att, i) => (
+              <div key={i}>
+                <img src={att.imageData} className="message-image" alt="attachment" />
+                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                  Method: {att.source}
+                </div>
+              </div>
+            ))}
+
+            <div className="message-bubble">{msg.content}</div>
+          </div>
+        ))}
       </div>
 
       <div className="input-container">
