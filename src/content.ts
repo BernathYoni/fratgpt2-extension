@@ -204,6 +204,11 @@ function handleMouseUp(e: MouseEvent) {
 
   console.log('[CONTENT] 📐 Final coordinates (with device pixel ratio):', JSON.stringify(coords, null, 2));
   console.log('[CONTENT] 📱 Device pixel ratio:', window.devicePixelRatio);
+
+  // IMMEDIATELY remove the overlay and selection box (before sending message)
+  console.log('[CONTENT] 🗑️ Removing overlay and selection box IMMEDIATELY');
+  cancelSnipMode();
+
   console.log('[CONTENT] 📤 Sending SNIP_COMPLETE message to sidepanel...');
 
   // Send coordinates to background
@@ -213,7 +218,6 @@ function handleMouseUp(e: MouseEvent) {
   });
 
   console.log('[CONTENT] ✅ SNIP_COMPLETE message sent');
-  cancelSnipMode();
 }
 
 function handleKeyDown(e: KeyboardEvent) {
@@ -223,20 +227,28 @@ function handleKeyDown(e: KeyboardEvent) {
 }
 
 function cancelSnipMode() {
+  console.log('[CONTENT] 🧹 cancelSnipMode called, isSnipping:', isSnipping);
   if (!isSnipping) return;
   isSnipping = false;
 
+  // Remove event listeners from overlay before removing it
   if (overlay) {
+    console.log('[CONTENT] 🗑️ Removing overlay and its event listeners');
+    overlay.removeEventListener('mousedown', handleMouseDown);
+    overlay.removeEventListener('mousemove', handleMouseMove);
+    overlay.removeEventListener('mouseup', handleMouseUp);
     overlay.remove();
     overlay = null;
   }
 
   if (selectionBox) {
+    console.log('[CONTENT] 🗑️ Removing selection box');
     selectionBox.remove();
     selectionBox = null;
   }
 
   document.removeEventListener('keydown', handleKeyDown);
+  console.log('[CONTENT] ✅ Snip mode fully canceled');
 }
 
 console.log('='.repeat(80));
