@@ -43,6 +43,14 @@ function App() {
     console.log('[SIDEPANEL] 💼 Current session:', session?.id || 'none');
   }, [mode]);
 
+  // Log sending state changes
+  useEffect(() => {
+    console.log('[SIDEPANEL] 🔄 SENDING STATE CHANGED:', sending);
+    console.log('[SIDEPANEL] 🎯 Current mode:', mode);
+    console.log('[SIDEPANEL] 💼 Current session:', session?.id || 'none');
+    console.log('[SIDEPANEL] 🚦 Mode buttons should be:', sending ? 'DISABLED' : 'ENABLED');
+  }, [sending]);
+
   useEffect(() => {
     console.log('='.repeat(80));
     console.log('[SIDEPANEL] 🎬 Sidepanel mounted, loading token...');
