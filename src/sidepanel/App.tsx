@@ -10,11 +10,13 @@ interface Message {
   role: 'USER' | 'ASSISTANT';
   content: string;
   shortAnswer?: string;
+  steps?: string[];
   provider?: string;
   attachments?: Array<{ imageData?: string; source: string }>;
+  metadata?: { error?: string };
   providers?: Array<{
     provider: string;
-    response: { shortAnswer: string; explanation: string };
+    response: { shortAnswer: string; steps: string[] };
   }>;
 }
 
@@ -34,6 +36,11 @@ function App() {
   const [sending, setSending] = useState(false);
   const [selectedTab, setSelectedTab] = useState<Tab>('gemini');
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
+  const [replyContext, setReplyContext] = useState<{
+    messageId: string;
+    stepIndex: number;
+    stepText: string;
+  } | null>(null);
 
   const chatRef = useRef<HTMLDivElement>(null);
 
@@ -459,8 +466,21 @@ function App() {
     }
   };
 
+  const handleReplyToStep = (messageId: string, stepIndex: number, stepText: string) => {
+    setReplyContext({
+      messageId,
+      stepIndex,
+      stepText,
+    });
+  };
+
   const handleSend = () => {
-    sendMessage(input);
+    const messageText = replyContext
+      ? `Regarding Step ${replyContext.stepIndex + 1}: ${input}`
+      : input;
+
+    sendMessage(messageText);
+    setReplyContext(null); // Clear reply context after sending
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -676,7 +696,26 @@ function App() {
                       ) : (
                         <>
                           <div className="short-answer">{providerMsg.shortAnswer}</div>
-                          <div className="explanation">{providerMsg.content}</div>
+                          {providerMsg.steps && providerMsg.steps.length > 0 ? (
+                            <div className="steps">
+                              {providerMsg.steps.map((step, idx) => (
+                                <div key={idx} className="step">
+                                  <div className="step-header">
+                                    <strong>Step {idx + 1}:</strong>
+                                    <button
+                                      className="reply-btn"
+                                      onClick={() => handleReplyToStep(providerMsg.id, idx, step)}
+                                    >
+                                      Reply
+                                    </button>
+                                  </div>
+                                  <div className="step-content">{step}</div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="explanation">{providerMsg.content}</div>
+                          )}
                         </>
                       )}
                     </>
@@ -693,7 +732,26 @@ function App() {
               <div className="answer-box">
                 <div className="answer-label">Final Answer</div>
                 <div className="short-answer">{msg.shortAnswer}</div>
-                <div className="explanation">{msg.content}</div>
+                {msg.steps && msg.steps.length > 0 ? (
+                  <div className="steps">
+                    {msg.steps.map((step, idx) => (
+                      <div key={idx} className="step">
+                        <div className="step-header">
+                          <strong>Step {idx + 1}:</strong>
+                          <button
+                            className="reply-btn"
+                            onClick={() => handleReplyToStep(msg.id, idx, step)}
+                          >
+                            Reply
+                          </button>
+                        </div>
+                        <div className="step-content">{step}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="explanation">{msg.content}</div>
+                )}
               </div>
             )}
             </div>
@@ -718,6 +776,21 @@ function App() {
       </div>
 
       <div className="input-container">
+        {replyContext && (
+          <div className="reply-context">
+            <div className="reply-context-content">
+              <div className="reply-label">Replying to Step {replyContext.stepIndex + 1}:</div>
+              <div className="reply-preview">{replyContext.stepText.substring(0, 100)}{replyContext.stepText.length > 100 ? '...' : ''}</div>
+            </div>
+            <button
+              className="cancel-reply-btn"
+              onClick={() => setReplyContext(null)}
+              title="Cancel reply"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         <div className="input-box">
           <textarea
             value={input}

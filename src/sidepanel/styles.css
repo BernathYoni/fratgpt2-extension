@@ -294,3 +294,95 @@ body {
   padding: 16px;
   color: #6b7280;
 }
+
+/* Step container */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+/* Individual step */
+.step {
+  background: #f9fafb;
+  border-left: 3px solid #2563eb;
+  padding: 12px;
+  border-radius: 6px;
+}
+
+.step-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.step-content {
+  color: #374151;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.reply-btn {
+  padding: 4px 12px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.reply-btn:hover {
+  background: #f3f4f6;
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+/* Reply context banner */
+.reply-context {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.reply-context-content {
+  flex: 1;
+}
+
+.reply-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #2563eb;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.reply-preview {
+  font-size: 13px;
+  color: #1e40af;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.cancel-reply-btn {
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: #6b7280;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.cancel-reply-btn:hover {
+  color: #ef4444;
+}
