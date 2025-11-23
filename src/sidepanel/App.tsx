@@ -114,16 +114,20 @@ function App() {
     console.log('[SIDEPANEL] ✓ Storage change listener registered');
   }, []);
 
-  // Listen for snip completion - separate useEffect so it has access to current token
+  // Listen for snip completion - separate useEffect so it has access to current token, mode, and session
   useEffect(() => {
-    console.log('[SIDEPANEL] 🔊 Setting up message listener with current token state...');
+    console.log('[SIDEPANEL] 🔊 Setting up message listener with current state...');
     console.log('[SIDEPANEL] 🔐 Token available:', !!token);
+    console.log('[SIDEPANEL] 🎯 Current mode:', mode);
+    console.log('[SIDEPANEL] 💼 Current session:', session?.id || 'none');
 
     const messageListener = (message: any) => {
       console.log('[SIDEPANEL] 📨 Message received in listener:', message);
       if (message.type === 'SNIP_COMPLETE') {
         console.log('[SIDEPANEL] ✅ SNIP_COMPLETE message detected!');
         console.log('[SIDEPANEL] 🔐 Token in closure:', !!token);
+        console.log('[SIDEPANEL] 🎯 Mode in closure:', mode);
+        console.log('[SIDEPANEL] 💼 Session in closure:', session?.id || 'none');
         handleSnipComplete(message.coords);
       }
     };
@@ -136,7 +140,7 @@ function App() {
       console.log('[SIDEPANEL] 🧹 Removing message listener');
       chrome.runtime.onMessage.removeListener(messageListener);
     };
-  }, [token]); // Re-register when token changes to capture new token in closure
+  }, [token, mode, session]); // Re-register when token, mode, or session changes to capture fresh values in closure
 
   useEffect(() => {
     // Scroll to bottom when messages change
