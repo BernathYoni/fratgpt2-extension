@@ -30,6 +30,26 @@ function App() {
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState('');
 
+  // Helper function to parse steps from message content
+  const parseSteps = (msg: Message): string[] => {
+    // If steps are directly on the message, use them
+    if (msg.steps && msg.steps.length > 0) {
+      return msg.steps;
+    }
+
+    // Otherwise try to parse from content JSON
+    try {
+      const parsed = JSON.parse(msg.content);
+      if (parsed.steps && Array.isArray(parsed.steps)) {
+        return parsed.steps;
+      }
+    } catch (e) {
+      // Not JSON, ignore
+    }
+
+    return [];
+  };
+
   const [mode, setMode] = useState<Mode>('REGULAR');
   const [session, setSession] = useState<ChatSession | null>(null);
   const [input, setInput] = useState('');
@@ -683,6 +703,8 @@ function App() {
                     console.warn('[EXPERT TAB] ⚠️ No message found for provider:', selectedTab);
                   }
 
+                  const providerSteps = providerMsg ? parseSteps(providerMsg) : [];
+
                   return providerMsg ? (
                     <>
                       <div className="answer-label">Answer from {selectedTab.charAt(0).toUpperCase() + selectedTab.slice(1)}</div>
@@ -696,9 +718,9 @@ function App() {
                       ) : (
                         <>
                           <div className="short-answer">{providerMsg.shortAnswer}</div>
-                          {providerMsg.steps && providerMsg.steps.length > 0 ? (
+                          {providerSteps.length > 0 ? (
                             <div className="steps">
-                              {providerMsg.steps.map((step, idx) => (
+                              {providerSteps.map((step, idx) => (
                                 <div key={idx} className="step">
                                   <div className="step-header">
                                     <strong>Step {idx + 1}:</strong>
@@ -728,32 +750,35 @@ function App() {
               </div>
             )}
 
-            {msg.role === 'ASSISTANT' && session.mode !== 'EXPERT' && msg.shortAnswer && (
-              <div className="answer-box">
-                <div className="answer-label">Final Answer</div>
-                <div className="short-answer">{msg.shortAnswer}</div>
-                {msg.steps && msg.steps.length > 0 ? (
-                  <div className="steps">
-                    {msg.steps.map((step, idx) => (
-                      <div key={idx} className="step">
-                        <div className="step-header">
-                          <strong>Step {idx + 1}:</strong>
-                          <button
-                            className="reply-btn"
-                            onClick={() => handleReplyToStep(msg.id, idx, step)}
-                          >
-                            Reply
-                          </button>
+            {msg.role === 'ASSISTANT' && session.mode !== 'EXPERT' && msg.shortAnswer && (() => {
+              const msgSteps = parseSteps(msg);
+              return (
+                <div className="answer-box">
+                  <div className="answer-label">Final Answer</div>
+                  <div className="short-answer">{msg.shortAnswer}</div>
+                  {msgSteps.length > 0 ? (
+                    <div className="steps">
+                      {msgSteps.map((step, idx) => (
+                        <div key={idx} className="step">
+                          <div className="step-header">
+                            <strong>Step {idx + 1}:</strong>
+                            <button
+                              className="reply-btn"
+                              onClick={() => handleReplyToStep(msg.id, idx, step)}
+                            >
+                              Reply
+                            </button>
+                          </div>
+                          <div className="step-content">{step}</div>
                         </div>
-                        <div className="step-content">{step}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="explanation">{msg.content}</div>
-                )}
-              </div>
-            )}
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="explanation">{msg.content}</div>
+                  )}
+                </div>
+              );
+            })()}
             </div>
           );
         })}
