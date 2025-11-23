@@ -146,6 +146,11 @@ function App() {
   }, [session?.messages, optimisticMessages]);
 
   const handleScreen = async () => {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('[SCREEN] 🎬 handleScreen START');
+    console.log('[SCREEN] Current mode:', mode);
+    console.log('[SCREEN] Current session:', session?.id || 'none');
+    console.log('[SCREEN] Session mode:', session?.mode || 'none');
     try {
       const response: any = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: 'CAPTURE_SCREEN' }, resolve);
@@ -155,6 +160,8 @@ function App() {
         alert('Failed to capture screen: ' + response.error);
         return;
       }
+
+      console.log('[SCREEN] ✅ Screen captured');
 
       // Add optimistic user message immediately
       const userMessage: Message = {
@@ -174,12 +181,16 @@ function App() {
         content: 'Thinking...',
       };
 
+      console.log('[SCREEN] 📝 Creating optimistic messages');
       setOptimisticMessages([userMessage, thinkingMessage]);
       setInput('');
 
-      console.log('[SIDEPANEL] 🚀 Calling sendMessage with mode:', mode, 'source: SCREEN');
+      console.log('[SCREEN] 🚀 Calling sendMessage with mode:', mode, 'source: SCREEN');
       await sendMessage(input || 'Solve this problem', response.imageData, 'SCREEN');
+      console.log('[SCREEN] ✅ handleScreen COMPLETE');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (error) {
+      console.error('[SCREEN] ❌ ERROR:', error);
       alert('Failed to capture screen');
       setOptimisticMessages([]);
     }
@@ -259,28 +270,35 @@ function App() {
   };
 
   const handleSnipComplete = async (coords: any) => {
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('[SNIP] 🎬 handleSnipComplete START');
+    console.log('[SNIP] Current mode:', mode);
+    console.log('[SNIP] Current session:', session?.id || 'none');
+    console.log('[SNIP] Session mode:', session?.mode || 'none');
+    console.log('[SNIP] 📏 Coordinates:', JSON.stringify(coords, null, 2));
+
     try {
-      console.log('[SIDEPANEL] 📸 handleSnipComplete called');
-      console.log('[SIDEPANEL] 📏 Coordinates:', JSON.stringify(coords, null, 2));
-      console.log('[SIDEPANEL] 📤 Sending CAPTURE_SNIP message to background...');
+      console.log('[SNIP] 📤 Sending CAPTURE_SNIP message to background...');
 
       const response: any = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: 'CAPTURE_SNIP', coords }, (response) => {
-          console.log('[SIDEPANEL] 📬 Received response from background:', response);
+          console.log('[SNIP] 📬 Received response from background:', response);
           resolve(response);
         });
       });
 
-      console.log('[SIDEPANEL] 🔍 Checking response...');
+      console.log('[SNIP] 🔍 Checking response...');
       if (response.error) {
-        console.error('[SIDEPANEL] ❌ Error in response:', response.error);
+        console.error('[SNIP] ❌ Error in response:', response.error);
         alert('Failed to capture snip: ' + response.error);
+        console.log('[SNIP] ❌ handleSnipComplete FAILED');
+        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         return;
       }
 
-      console.log('[SIDEPANEL] ✅ Snip captured successfully!');
-      console.log('[SIDEPANEL] 📊 Image data length:', response.imageData?.length || 0);
-      console.log('[SIDEPANEL] 💬 Adding optimistic messages and sending...');
+      console.log('[SNIP] ✅ Snip captured successfully!');
+      console.log('[SNIP] 📊 Image data length:', response.imageData?.length || 0);
+      console.log('[SNIP] 💬 Creating optimistic messages...');
 
       // Add optimistic user message immediately
       const userMessage: Message = {
@@ -300,21 +318,29 @@ function App() {
         content: 'Thinking...',
       };
 
+      console.log('[SNIP] 📝 Setting optimistic messages...');
       setOptimisticMessages([userMessage, thinkingMessage]);
       setInput('');
 
-      console.log('[SIDEPANEL] 🚀 Calling sendMessage with mode:', mode, 'source: SNIP');
+      console.log('[SNIP] 🚀 About to call sendMessage');
+      console.log('[SNIP] 🚀 Mode being passed:', mode);
+      console.log('[SNIP] 🚀 Capture source:', 'SNIP');
+      console.log('[SNIP] 🚀 Message text:', input || 'Solve this problem');
       await sendMessage(input || 'Solve this problem', response.imageData, 'SNIP');
 
-      console.log('[SIDEPANEL] ✅ Message sent successfully!');
+      console.log('[SNIP] ✅ sendMessage completed');
+      console.log('[SNIP] ✅ handleSnipComplete COMPLETE');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (error: any) {
-      console.error('[SIDEPANEL] ❌ SNIP FAILED - Exception caught:');
-      console.error('[SIDEPANEL] ❌ Error name:', error?.name);
-      console.error('[SIDEPANEL] ❌ Error message:', error?.message);
-      console.error('[SIDEPANEL] ❌ Error stack:', error?.stack);
-      console.error('[SIDEPANEL] ❌ Full error:', error);
+      console.error('[SNIP] ❌ EXCEPTION CAUGHT:');
+      console.error('[SNIP] ❌ Error name:', error?.name);
+      console.error('[SNIP] ❌ Error message:', error?.message);
+      console.error('[SNIP] ❌ Error stack:', error?.stack);
+      console.error('[SNIP] ❌ Full error:', error);
       alert('Failed to capture snip: ' + (error?.message || 'Unknown error'));
       setOptimisticMessages([]);
+      console.log('[SNIP] ❌ handleSnipComplete FAILED');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     }
   };
 
