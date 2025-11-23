@@ -110,6 +110,7 @@ function startSnipMode() {
     background: rgba(0, 0, 0, 0.3);
     cursor: crosshair;
     z-index: 2147483647;
+    pointer-events: auto !important;
   `;
 
   // Create selection box
@@ -120,6 +121,7 @@ function startSnipMode() {
     background: rgba(59, 130, 246, 0.1);
     display: none;
     z-index: 2147483648;
+    pointer-events: none;
   `;
 
   console.log('[CONTENT] 📎 Appending overlay to document.body...');
@@ -128,23 +130,39 @@ function startSnipMode() {
   document.body.appendChild(selectionBox);
   console.log('[CONTENT] ✅ Elements appended to DOM');
 
-  // Add event listeners
-  console.log('[CONTENT] 🎧 Adding event listeners...');
-  overlay.addEventListener('mousedown', handleMouseDown);
-  overlay.addEventListener('mousemove', handleMouseMove);
-  overlay.addEventListener('mouseup', handleMouseUp);
+  // Add event listeners to BOTH overlay and window (for maximum compatibility)
+  // Use capture phase (true) to run BEFORE site's handlers
+  console.log('[CONTENT] 🎧 Adding event listeners with capture phase...');
+
+  // Overlay listeners (primary)
+  overlay.addEventListener('mousedown', handleMouseDown, true);
+  overlay.addEventListener('mousemove', handleMouseMove, true);
+  overlay.addEventListener('mouseup', handleMouseUp, true);
   overlay.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    e.stopPropagation();
     cancelSnipMode();
-  });
+  }, true);
+
+  // Window listeners (fallback for sites that intercept events)
+  window.addEventListener('mousedown', handleMouseDown, true);
+  window.addEventListener('mousemove', handleMouseMove, true);
+  window.addEventListener('mouseup', handleMouseUp, true);
 
   // Add ESC key listener
-  document.addEventListener('keydown', handleKeyDown);
-  console.log('[CONTENT] ✅ Event listeners added');
+  document.addEventListener('keydown', handleKeyDown, true);
+  console.log('[CONTENT] ✅ Event listeners added (capture phase + window fallback)');
   console.log('[CONTENT] 🎉 Snip mode started successfully! You can now select an area.');
 }
 
 function handleMouseDown(e: MouseEvent) {
+  if (!isSnipping) return;
+
+  // Prevent site's handlers from interfering
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+
   startX = e.clientX;
   startY = e.clientY;
   if (selectionBox) {
@@ -157,7 +175,12 @@ function handleMouseDown(e: MouseEvent) {
 }
 
 function handleMouseMove(e: MouseEvent) {
-  if (!selectionBox || selectionBox.style.display === 'none') return;
+  if (!isSnipping || !selectionBox || selectionBox.style.display === 'none') return;
+
+  // Prevent site's handlers from interfering
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
 
   const currentX = e.clientX;
   const currentY = e.clientY;
@@ -174,7 +197,12 @@ function handleMouseMove(e: MouseEvent) {
 }
 
 function handleMouseUp(e: MouseEvent) {
-  if (!selectionBox) return;
+  if (!isSnipping || !selectionBox) return;
+
+  // Prevent site's handlers from interfering
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
 
   const currentX = e.clientX;
   const currentY = e.clientY;
@@ -234,12 +262,18 @@ function cancelSnipMode() {
   // Remove event listeners from overlay before removing it
   if (overlay) {
     console.log('[CONTENT] 🗑️ Removing overlay and its event listeners');
-    overlay.removeEventListener('mousedown', handleMouseDown);
-    overlay.removeEventListener('mousemove', handleMouseMove);
-    overlay.removeEventListener('mouseup', handleMouseUp);
+    overlay.removeEventListener('mousedown', handleMouseDown, true);
+    overlay.removeEventListener('mousemove', handleMouseMove, true);
+    overlay.removeEventListener('mouseup', handleMouseUp, true);
     overlay.remove();
     overlay = null;
   }
+
+  // Remove window-level listeners (fallback)
+  console.log('[CONTENT] 🗑️ Removing window event listeners');
+  window.removeEventListener('mousedown', handleMouseDown, true);
+  window.removeEventListener('mousemove', handleMouseMove, true);
+  window.removeEventListener('mouseup', handleMouseUp, true);
 
   if (selectionBox) {
     console.log('[CONTENT] 🗑️ Removing selection box');
@@ -247,7 +281,7 @@ function cancelSnipMode() {
     selectionBox = null;
   }
 
-  document.removeEventListener('keydown', handleKeyDown);
+  document.removeEventListener('keydown', handleKeyDown, true);
   console.log('[CONTENT] ✅ Snip mode fully canceled');
 }
 
