@@ -32,7 +32,7 @@ function App() {
   const [session, setSession] = useState<ChatSession | null>(null);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<Tab>('consensus');
+  const [selectedTab, setSelectedTab] = useState<Tab>('gemini');
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
 
   const chatRef = useRef<HTMLDivElement>(null);
@@ -573,12 +573,6 @@ function App() {
               <div className="answer-box" style={{ maxWidth: '100%' }}>
                 <div className="tabs">
                   <button
-                    className={`tab ${selectedTab === 'consensus' ? 'active' : ''}`}
-                    onClick={() => setSelectedTab('consensus')}
-                  >
-                    Consensus
-                  </button>
-                  <button
                     className={`tab ${selectedTab === 'gemini' ? 'active' : ''}`}
                     onClick={() => setSelectedTab('gemini')}
                   >
@@ -598,26 +592,20 @@ function App() {
                   </button>
                 </div>
 
-                {selectedTab === 'consensus' && (
-                  <>
-                    <div className="answer-label">Final Answer</div>
-                    <div className="short-answer">{msg.shortAnswer}</div>
-                    <div className="explanation">{msg.content}</div>
-                  </>
-                )}
-
-                {selectedTab !== 'consensus' && (() => {
+                {(() => {
                   const providerMsg = session.messages.find(
                     (m) => m.provider?.toLowerCase() === selectedTab.toLowerCase() && m.role === 'ASSISTANT'
                   );
                   return providerMsg ? (
                     <>
-                      <div className="answer-label">Answer from {selectedTab}</div>
+                      <div className="answer-label">Answer from {selectedTab.charAt(0).toUpperCase() + selectedTab.slice(1)}</div>
                       <div className="short-answer">{providerMsg.shortAnswer}</div>
                       <div className="explanation">{providerMsg.content}</div>
                     </>
                   ) : (
-                    <div>No response from this provider</div>
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>
+                      No response from this provider
+                    </div>
                   );
                 })()}
               </div>
