@@ -177,6 +177,7 @@ function App() {
       setOptimisticMessages([userMessage, thinkingMessage]);
       setInput('');
 
+      console.log('[SIDEPANEL] 🚀 Calling sendMessage with mode:', mode, 'source: SCREEN');
       await sendMessage(input || 'Solve this problem', response.imageData, 'SCREEN');
     } catch (error) {
       alert('Failed to capture screen');
@@ -302,6 +303,7 @@ function App() {
       setOptimisticMessages([userMessage, thinkingMessage]);
       setInput('');
 
+      console.log('[SIDEPANEL] 🚀 Calling sendMessage with mode:', mode, 'source: SNIP');
       await sendMessage(input || 'Solve this problem', response.imageData, 'SNIP');
 
       console.log('[SIDEPANEL] ✅ Message sent successfully!');
