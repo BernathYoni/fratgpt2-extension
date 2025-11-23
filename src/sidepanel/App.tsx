@@ -547,6 +547,20 @@ function App() {
           <button className="btn" onClick={handleSnip} disabled={sending}>
             ✂️ Snip
           </button>
+          {session && (
+            <button
+              className="btn"
+              onClick={() => {
+                setSession(null);
+                setOptimisticMessages([]);
+                setInput('');
+              }}
+              disabled={sending}
+              style={{ background: '#ef4444', color: 'white', border: 'none' }}
+            >
+              🔄 New
+            </button>
+          )}
         </div>
       </div>
 
