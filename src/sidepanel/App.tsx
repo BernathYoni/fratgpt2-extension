@@ -579,20 +579,6 @@ function App() {
           <button className="btn" onClick={handleSnip} disabled={sending}>
             ✂️ Snip
           </button>
-          {session && (
-            <button
-              className="btn"
-              onClick={() => {
-                setSession(null);
-                setOptimisticMessages([]);
-                setInput('');
-              }}
-              disabled={sending}
-              style={{ background: '#ef4444', color: 'white', border: 'none' }}
-            >
-              🔄 New
-            </button>
-          )}
         </div>
       </div>
 
@@ -649,14 +635,50 @@ function App() {
                 </div>
 
                 {(() => {
+                  console.log('[EXPERT TAB] 🔍 Looking for provider:', selectedTab);
+                  console.log('[EXPERT TAB] 📋 All messages:', session.messages.map(m => ({
+                    role: m.role,
+                    provider: m.provider,
+                    hasShortAnswer: !!m.shortAnswer,
+                    hasContent: !!m.content,
+                    contentLength: m.content?.length || 0
+                  })));
+
                   const providerMsg = session.messages.find(
                     (m) => m.provider?.toLowerCase() === selectedTab.toLowerCase() && m.role === 'ASSISTANT'
                   );
+
+                  console.log('[EXPERT TAB] 🎯 Found message for', selectedTab, ':', !!providerMsg);
+                  if (providerMsg) {
+                    console.log('[EXPERT TAB] ✅ Message details:', {
+                      provider: providerMsg.provider,
+                      shortAnswer: providerMsg.shortAnswer,
+                      contentLength: providerMsg.content?.length,
+                      hasError: !!(providerMsg as any).metadata?.error
+                    });
+                    if ((providerMsg as any).metadata?.error) {
+                      console.error('[EXPERT TAB] ❌ Provider error found:', (providerMsg as any).metadata.error);
+                    }
+                  } else {
+                    console.warn('[EXPERT TAB] ⚠️ No message found for provider:', selectedTab);
+                  }
+
                   return providerMsg ? (
                     <>
                       <div className="answer-label">Answer from {selectedTab.charAt(0).toUpperCase() + selectedTab.slice(1)}</div>
-                      <div className="short-answer">{providerMsg.shortAnswer}</div>
-                      <div className="explanation">{providerMsg.content}</div>
+                      {(providerMsg as any).metadata?.error ? (
+                        <div style={{ padding: '20px', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: '6px', color: '#991b1b' }}>
+                          <strong>Error from {selectedTab}:</strong>
+                          <pre style={{ marginTop: '8px', whiteSpace: 'pre-wrap', fontSize: '12px' }}>
+                            {(providerMsg as any).metadata.error}
+                          </pre>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="short-answer">{providerMsg.shortAnswer}</div>
+                          <div className="explanation">{providerMsg.content}</div>
+                        </>
+                      )}
                     </>
                   ) : (
                     <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>
