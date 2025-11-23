@@ -574,7 +574,10 @@ function App() {
                 <img key={i} src={att.imageData} className="message-image" alt="attachment" />
               ))}
 
-              <div className="message-bubble">{msg.content}</div>
+              {/* In EXPERT mode with CONSENSUS, skip the message bubble - only show tabbed interface */}
+              {!(session.mode === 'EXPERT' && msg.role === 'ASSISTANT' && msg.provider === 'CONSENSUS') && (
+                <div className="message-bubble">{msg.content}</div>
+              )}
 
               {msg.role === 'ASSISTANT' && session.mode === 'EXPERT' && msg.provider === 'CONSENSUS' && (
               <div className="answer-box" style={{ maxWidth: '100%' }}>
