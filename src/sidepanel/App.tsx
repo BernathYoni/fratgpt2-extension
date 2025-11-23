@@ -561,15 +561,22 @@ function App() {
         )}
 
         {/* Render real messages from session */}
-        {session?.messages.map((msg, idx) => (
-          <div key={idx} className={`message ${msg.role.toLowerCase()}`}>
-            {msg.attachments?.map((att, i) => (
-              <img key={i} src={att.imageData} className="message-image" alt="attachment" />
-            ))}
+        {session?.messages.map((msg, idx) => {
+          // In EXPERT mode, skip individual provider messages (GEMINI, OPENAI, CLAUDE)
+          // Only show USER messages and CONSENSUS message
+          if (session.mode === 'EXPERT' && msg.role === 'ASSISTANT' && msg.provider !== 'CONSENSUS') {
+            return null;
+          }
 
-            <div className="message-bubble">{msg.content}</div>
+          return (
+            <div key={idx} className={`message ${msg.role.toLowerCase()}`}>
+              {msg.attachments?.map((att, i) => (
+                <img key={i} src={att.imageData} className="message-image" alt="attachment" />
+              ))}
 
-            {msg.role === 'ASSISTANT' && session.mode === 'EXPERT' && msg.provider === 'CONSENSUS' && (
+              <div className="message-bubble">{msg.content}</div>
+
+              {msg.role === 'ASSISTANT' && session.mode === 'EXPERT' && msg.provider === 'CONSENSUS' && (
               <div className="answer-box" style={{ maxWidth: '100%' }}>
                 <div className="tabs">
                   <button
@@ -618,8 +625,9 @@ function App() {
                 <div className="explanation">{msg.content}</div>
               </div>
             )}
-          </div>
-        ))}
+            </div>
+          );
+        })}
 
         {/* Render optimistic messages (user message + thinking) */}
         {optimisticMessages.map((msg, idx) => (
