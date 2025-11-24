@@ -1,4 +1,6 @@
 // Background service worker for FratGPT extension
+import { compressBase64Image } from './utils/imageCompression';
+
 console.log('='.repeat(80));
 console.log('[BACKGROUND] 🚀 FratGPT background service worker starting...');
 console.log('[BACKGROUND] ⏰ Loaded at:', new Date().toISOString());
@@ -117,19 +119,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 async function handleCaptureScreen(sendResponse: (response: any) => void) {
   try {
+    console.log('[BACKGROUND] 📸 Starting screen capture...');
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab.id) {
+      console.error('[BACKGROUND] ❌ No active tab');
       sendResponse({ error: 'No active tab' });
       return;
     }
 
+    console.log('[BACKGROUND] 📸 Capturing visible tab...');
     const dataUrl = await chrome.tabs.captureVisibleTab({
       format: 'png',
     });
+    console.log('[BACKGROUND] ✅ Screen captured, size:', (dataUrl.length / 1024).toFixed(2), 'KB');
 
-    sendResponse({ imageData: dataUrl });
+    // ✨ Compress the screen capture ✨
+    console.log('[BACKGROUND] 🗜️  Compressing screen capture...');
+    const result = await compressBase64Image(dataUrl, {
+      maxSizeMB: 0.5,           // 500KB max for screen captures
+      maxWidthOrHeight: 1200,   // Resize to 1200px max dimension
+      quality: 0.85,            // 85% quality
+      skipIfSmall: true,        // Skip compression if already small
+    });
+
+    console.log('[BACKGROUND] ✅ SCREEN CAPTURE COMPLETE!');
+    console.log('[BACKGROUND] 📊 Compression Stats:');
+    console.log('[BACKGROUND]    Original:', result.originalSize, 'KB');
+    console.log('[BACKGROUND]    Compressed:', result.compressedSize, 'KB');
+    console.log('[BACKGROUND]    Saved:', result.reductionPercent, '%');
+
+    sendResponse({
+      imageData: result.compressed,
+      compressionStats: {
+        originalSize: result.originalSize,
+        compressedSize: result.compressedSize,
+        reductionPercent: result.reductionPercent,
+      }
+    });
   } catch (error: any) {
-    console.error('Screen capture failed:', error);
+    console.error('[BACKGROUND] ❌ Screen capture failed:', error);
     sendResponse({ error: error.message });
   }
 }
@@ -157,10 +185,31 @@ async function handleCaptureSnip(coords: { x: number; y: number; width: number; 
     // Crop the image using OffscreenCanvas (works in service workers)
     console.log('[BACKGROUND] ✂️ Starting crop operation...');
     const croppedImage = await cropImageWithOffscreenCanvas(fullScreenshot, coords);
-    console.log('[BACKGROUND] ✅ Image cropped successfully, data URL length:', croppedImage.length);
+    console.log('[BACKGROUND] ✅ Image cropped successfully, size:', (croppedImage.length / 1024).toFixed(2), 'KB');
 
-    sendResponse({ imageData: croppedImage });
-    console.log('[BACKGROUND] ✅ Snip capture complete!');
+    // ✨ Compress the snip ✨
+    console.log('[BACKGROUND] 🗜️  Compressing snip...');
+    const result = await compressBase64Image(croppedImage, {
+      maxSizeMB: 0.3,           // 300KB max for snips (smaller than screen)
+      maxWidthOrHeight: 1200,   // Resize to 1200px max dimension
+      quality: 0.85,            // 85% quality
+      skipIfSmall: true,        // Skip compression if already small
+    });
+
+    console.log('[BACKGROUND] ✅ SNIP CAPTURE COMPLETE!');
+    console.log('[BACKGROUND] 📊 Compression Stats:');
+    console.log('[BACKGROUND]    Original:', result.originalSize, 'KB');
+    console.log('[BACKGROUND]    Compressed:', result.compressedSize, 'KB');
+    console.log('[BACKGROUND]    Saved:', result.reductionPercent, '%');
+
+    sendResponse({
+      imageData: result.compressed,
+      compressionStats: {
+        originalSize: result.originalSize,
+        compressedSize: result.compressedSize,
+        reductionPercent: result.reductionPercent,
+      }
+    });
   } catch (error: any) {
     console.error('[BACKGROUND] ❌ SNIP CAPTURE FAILED!');
     console.error('[BACKGROUND] ❌ Error name:', error.name);
