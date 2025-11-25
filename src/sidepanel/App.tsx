@@ -400,21 +400,38 @@ function App() {
     setError('');
 
     try {
-      const url = session
-        ? `${API_URL}/chat/${session.id}/message`
-        : `${API_URL}/chat/start`;
+      // 🎯 SMART DETECTION: New capture vs text follow-up
+      // - Screen/Snip (imageData present) → ALWAYS start new session (/chat/start)
+      // - Text follow-up (no imageData) → Continue session (/:sessionId/message)
+      const isNewCapture = !!imageData;
+      const isTextFollowup = !imageData && !!session;
+
+      console.log('[SIDEPANEL] 🧠 Smart detection:');
+      console.log('[SIDEPANEL]    isNewCapture:', isNewCapture);
+      console.log('[SIDEPANEL]    isTextFollowup:', isTextFollowup);
+
+      const url = isNewCapture
+        ? `${API_URL}/chat/start` // New capture → always create new session
+        : (session
+            ? `${API_URL}/chat/${session.id}/message` // Text follow-up → use existing session
+            : `${API_URL}/chat/start`); // First message ever → create session
 
       console.log('[SIDEPANEL] 🌐 API URL:', url);
+      console.log('[SIDEPANEL] 💡 Reasoning:', isNewCapture
+        ? 'New capture detected - creating fresh session (no conversation history sent)'
+        : (isTextFollowup
+            ? 'Text follow-up detected - continuing session (conversation history sent, NO images)'
+            : 'First message ever - creating new session'));
 
       const body: any = {
         message: text,
       };
 
-      // Always include mode for new captures (snip/screen), use current mode selection
-      const shouldIncludeMode = !session || !!imageData;
+      // Include mode for: new sessions OR new captures
+      const shouldIncludeMode = !session || isNewCapture;
       console.log('[SIDEPANEL] 🔍 Mode inclusion check:');
       console.log('[SIDEPANEL]    !session:', !session);
-      console.log('[SIDEPANEL]    !!imageData:', !!imageData);
+      console.log('[SIDEPANEL]    isNewCapture:', isNewCapture);
       console.log('[SIDEPANEL]    shouldIncludeMode:', shouldIncludeMode);
 
       if (shouldIncludeMode) {
