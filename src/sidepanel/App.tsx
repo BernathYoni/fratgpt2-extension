@@ -61,8 +61,10 @@ function App() {
     stepIndex: number;
     stepText: string;
   } | null>(null);
+  const [responseTime, setResponseTime] = useState<number | null>(null); // Timer for response time
 
   const chatRef = useRef<HTMLDivElement>(null);
+  const requestStartTime = useRef<number | null>(null); // Track when request started
 
   // Log mode changes
   useEffect(() => {
@@ -182,6 +184,11 @@ function App() {
     console.log('[SCREEN] Current mode:', mode);
     console.log('[SCREEN] Current session:', session?.id || 'none');
     console.log('[SCREEN] Session mode:', session?.mode || 'none');
+
+    // ⏱️ Start timer when user clicks Screen button
+    requestStartTime.current = Date.now();
+    console.log('[SCREEN] ⏱️ Timer started:', requestStartTime.current);
+
     try {
       const response: any = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: 'CAPTURE_SCREEN' }, resolve);
@@ -189,6 +196,7 @@ function App() {
 
       if (response.error) {
         alert('Failed to capture screen: ' + response.error);
+        requestStartTime.current = null; // Reset timer on error
         return;
       }
 
@@ -224,10 +232,15 @@ function App() {
       console.error('[SCREEN] ❌ ERROR:', error);
       alert('Failed to capture screen');
       setOptimisticMessages([]);
+      requestStartTime.current = null; // Reset timer on error
     }
   };
 
   const handleSnip = async () => {
+    // ⏱️ Start timer when user clicks Snip button
+    requestStartTime.current = Date.now();
+    console.log('[SNIP] ⏱️ Timer started:', requestStartTime.current);
+
     try {
       console.log('[SIDEPANEL] 🎯 handleSnip called - starting snip mode');
 
@@ -485,6 +498,14 @@ function App() {
       console.log('[SIDEPANEL] 📊 Session ID:', data.id);
       console.log('[SIDEPANEL] 📊 Messages count:', data.messages?.length || 0);
 
+      // ⏱️ Calculate response time
+      if (requestStartTime.current) {
+        const elapsedTime = (Date.now() - requestStartTime.current) / 1000; // Convert to seconds
+        setResponseTime(elapsedTime);
+        console.log('[SIDEPANEL] ⏱️ Response time:', elapsedTime.toFixed(1), 'seconds');
+        requestStartTime.current = null; // Reset timer
+      }
+
       // Clear optimistic messages and show real response
       setOptimisticMessages([]);
       setSession(data);
@@ -512,6 +533,10 @@ function App() {
   };
 
   const handleSend = () => {
+    // ⏱️ Start timer for text follow-ups too
+    requestStartTime.current = Date.now();
+    console.log('[SEND] ⏱️ Timer started:', requestStartTime.current);
+
     const messageText = replyContext
       ? `Regarding Step ${replyContext.stepIndex + 1}: ${input}`
       : input;
@@ -668,8 +693,29 @@ function App() {
                 <div className="message-bubble">{msg.content}</div>
               )}
 
-              {msg.role === 'ASSISTANT' && session.mode === 'EXPERT' && msg.provider === 'CONSENSUS' && (
+              {msg.role === 'ASSISTANT' && session.mode === 'EXPERT' && msg.provider === 'CONSENSUS' && (() => {
+                // Check if this is the most recent assistant message to show timer
+                const assistantMessages = session.messages.filter(m => m.role === 'ASSISTANT');
+                const isLatestAssistant = assistantMessages[assistantMessages.length - 1]?.id === msg.id;
+
+                return (
               <div className="answer-box" style={{ maxWidth: '100%' }}>
+                {/* ⏱️ Display response time for latest expert message */}
+                {isLatestAssistant && responseTime !== null && (
+                  <div style={{
+                    fontSize: '12px',
+                    color: '#10b981',
+                    fontWeight: '500',
+                    marginBottom: '12px',
+                    padding: '6px 12px',
+                    backgroundColor: '#ecfdf5',
+                    borderRadius: '6px',
+                    display: 'inline-block'
+                  }}>
+                    ⏱️ Time to answer: {responseTime.toFixed(1)}s
+                  </div>
+                )}
+
                 <div className="tabs">
                   <button
                     className={`tab ${selectedTab === 'gemini' ? 'active' : ''}`}
@@ -765,14 +811,36 @@ function App() {
                   );
                 })()}
               </div>
-            )}
+                );
+              })()}
 
             {msg.role === 'ASSISTANT' && session.mode !== 'EXPERT' && msg.shortAnswer && (() => {
               const msgSteps = parseSteps(msg);
+              // Check if this is the most recent assistant message to show timer
+              const assistantMessages = session.messages.filter(m => m.role === 'ASSISTANT');
+              const isLatestAssistant = assistantMessages[assistantMessages.length - 1]?.id === msg.id;
+
               return (
                 <div className="answer-box">
                   <div className="answer-label">Final Answer</div>
                   <div className="short-answer">{msg.shortAnswer}</div>
+
+                  {/* ⏱️ Display response time for latest message */}
+                  {isLatestAssistant && responseTime !== null && (
+                    <div style={{
+                      fontSize: '12px',
+                      color: '#10b981',
+                      fontWeight: '500',
+                      marginTop: '8px',
+                      padding: '6px 12px',
+                      backgroundColor: '#ecfdf5',
+                      borderRadius: '6px',
+                      display: 'inline-block'
+                    }}>
+                      ⏱️ Time to answer: {responseTime.toFixed(1)}s
+                    </div>
+                  )}
+
                   {msgSteps.length > 0 ? (
                     <div className="steps">
                       {msgSteps.map((step, idx) => (
