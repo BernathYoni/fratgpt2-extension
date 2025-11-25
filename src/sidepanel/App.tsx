@@ -185,10 +185,6 @@ function App() {
     console.log('[SCREEN] Current session:', session?.id || 'none');
     console.log('[SCREEN] Session mode:', session?.mode || 'none');
 
-    // ⏱️ Start timer when user clicks Screen button
-    requestStartTime.current = Date.now();
-    console.log('[SCREEN] ⏱️ Timer started:', requestStartTime.current);
-
     try {
       const response: any = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: 'CAPTURE_SCREEN' }, resolve);
@@ -196,7 +192,6 @@ function App() {
 
       if (response.error) {
         alert('Failed to capture screen: ' + response.error);
-        requestStartTime.current = null; // Reset timer on error
         return;
       }
 
@@ -232,14 +227,10 @@ function App() {
       console.error('[SCREEN] ❌ ERROR:', error);
       alert('Failed to capture screen');
       setOptimisticMessages([]);
-      requestStartTime.current = null; // Reset timer on error
     }
   };
 
   const handleSnip = async () => {
-    // ⏱️ Start timer when user clicks Snip button
-    requestStartTime.current = Date.now();
-    console.log('[SNIP] ⏱️ Timer started:', requestStartTime.current);
 
     try {
       console.log('[SIDEPANEL] 🎯 handleSnip called - starting snip mode');
@@ -464,6 +455,11 @@ function App() {
       console.log('[SIDEPANEL] 📦 Body keys:', Object.keys(body));
       console.log('[SIDEPANEL] 📦 Full body (without imageData):', JSON.stringify({...body, imageData: imageData ? '[IMAGE_DATA]' : undefined}, null, 2));
 
+      // ⏱️ Start timer RIGHT BEFORE sending request to backend
+      // This measures actual backend processing time (not capture time)
+      requestStartTime.current = Date.now();
+      console.log('[SIDEPANEL] ⏱️ Timer started (fetch about to send):', requestStartTime.current);
+
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -533,10 +529,6 @@ function App() {
   };
 
   const handleSend = () => {
-    // ⏱️ Start timer for text follow-ups too
-    requestStartTime.current = Date.now();
-    console.log('[SEND] ⏱️ Timer started:', requestStartTime.current);
-
     const messageText = replyContext
       ? `Regarding Step ${replyContext.stepIndex + 1}: ${input}`
       : input;
