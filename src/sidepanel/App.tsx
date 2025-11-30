@@ -179,13 +179,16 @@ function App() {
   }, [session?.messages, optimisticMessages]);
 
   const handleScreen = async () => {
+    const startTime = Date.now();
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('[SCREEN] 🎬 handleScreen START');
+    console.log(`[SCREEN] [${new Date().toISOString()}] 🎬 handleScreen START`);
     console.log('[SCREEN] Current mode:', mode);
     console.log('[SCREEN] Current session:', session?.id || 'none');
     console.log('[SCREEN] Session mode:', session?.mode || 'none');
 
     try {
+      const captureStart = Date.now();
+      console.log(`[SCREEN] [${new Date().toISOString()}] 📸 Requesting screen capture...`);
       const response: any = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: 'CAPTURE_SCREEN' }, resolve);
       });
@@ -195,7 +198,8 @@ function App() {
         return;
       }
 
-      console.log('[SCREEN] ✅ Screen captured');
+      const captureTime = Date.now() - captureStart;
+      console.log(`[SCREEN] [${new Date().toISOString()}] ✅ Screen captured in ${captureTime}ms`);
 
       // Add optimistic user message immediately
       const userMessage: Message = {
@@ -215,13 +219,14 @@ function App() {
         content: 'Thinking...',
       };
 
-      console.log('[SCREEN] 📝 Creating optimistic messages');
+      console.log(`[SCREEN] [${new Date().toISOString()}] 📝 Creating optimistic messages`);
       setOptimisticMessages([userMessage, thinkingMessage]);
       setInput('');
 
-      console.log('[SCREEN] 🚀 Calling sendMessage with mode:', mode, 'source: SCREEN');
+      console.log(`[SCREEN] [${new Date().toISOString()}] 🚀 Calling sendMessage with mode: ${mode}, source: SCREEN`);
       await sendMessage(input || 'Solve this problem', response.imageData, 'SCREEN');
-      console.log('[SCREEN] ✅ handleScreen COMPLETE');
+      const totalTime = Date.now() - startTime;
+      console.log(`[SCREEN] [${new Date().toISOString()}] ✅ handleScreen COMPLETE - Total time: ${totalTime}ms`);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (error) {
       console.error('[SCREEN] ❌ ERROR:', error);
@@ -305,24 +310,27 @@ function App() {
   };
 
   const handleSnipComplete = async (coords: any) => {
+    const startTime = Date.now();
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('[SNIP] 🎬 handleSnipComplete START');
+    console.log(`[SNIP] [${new Date().toISOString()}] 🎬 handleSnipComplete START`);
     console.log('[SNIP] Current mode:', mode);
     console.log('[SNIP] Current session:', session?.id || 'none');
     console.log('[SNIP] Session mode:', session?.mode || 'none');
     console.log('[SNIP] 📏 Coordinates:', JSON.stringify(coords, null, 2));
 
     try {
-      console.log('[SNIP] 📤 Sending CAPTURE_SNIP message to background...');
+      const captureStart = Date.now();
+      console.log(`[SNIP] [${new Date().toISOString()}] 📤 Sending CAPTURE_SNIP message to background...`);
 
       const response: any = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: 'CAPTURE_SNIP', coords }, (response) => {
-          console.log('[SNIP] 📬 Received response from background:', response);
+          console.log(`[SNIP] [${new Date().toISOString()}] 📬 Received response from background:`, response);
           resolve(response);
         });
       });
 
-      console.log('[SNIP] 🔍 Checking response...');
+      const captureTime = Date.now() - captureStart;
+      console.log(`[SNIP] [${new Date().toISOString()}] 🔍 Checking response... (capture took ${captureTime}ms)`);
       if (response.error) {
         console.error('[SNIP] ❌ Error in response:', response.error);
         alert('Failed to capture snip: ' + response.error);
@@ -331,9 +339,9 @@ function App() {
         return;
       }
 
-      console.log('[SNIP] ✅ Snip captured successfully!');
+      console.log(`[SNIP] [${new Date().toISOString()}] ✅ Snip captured successfully in ${captureTime}ms!`);
       console.log('[SNIP] 📊 Image data length:', response.imageData?.length || 0);
-      console.log('[SNIP] 💬 Creating optimistic messages...');
+      console.log(`[SNIP] [${new Date().toISOString()}] 💬 Creating optimistic messages...`);
 
       // Add optimistic user message immediately
       const userMessage: Message = {
@@ -353,18 +361,19 @@ function App() {
         content: 'Thinking...',
       };
 
-      console.log('[SNIP] 📝 Setting optimistic messages...');
+      console.log(`[SNIP] [${new Date().toISOString()}] 📝 Setting optimistic messages...`);
       setOptimisticMessages([userMessage, thinkingMessage]);
       setInput('');
 
-      console.log('[SNIP] 🚀 About to call sendMessage');
+      console.log(`[SNIP] [${new Date().toISOString()}] 🚀 About to call sendMessage`);
       console.log('[SNIP] 🚀 Mode being passed:', mode);
       console.log('[SNIP] 🚀 Capture source:', 'SNIP');
       console.log('[SNIP] 🚀 Message text:', input || 'Solve this problem');
       await sendMessage(input || 'Solve this problem', response.imageData, 'SNIP');
 
-      console.log('[SNIP] ✅ sendMessage completed');
-      console.log('[SNIP] ✅ handleSnipComplete COMPLETE');
+      const totalTime = Date.now() - startTime;
+      console.log(`[SNIP] [${new Date().toISOString()}] ✅ sendMessage completed`);
+      console.log(`[SNIP] [${new Date().toISOString()}] ✅ handleSnipComplete COMPLETE - Total time: ${totalTime}ms`);
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (error: any) {
       console.error('[SNIP] ❌ EXCEPTION CAUGHT:');
@@ -380,7 +389,8 @@ function App() {
   };
 
   const sendMessage = async (text: string, imageData?: string, captureSource?: string) => {
-    console.log('[SIDEPANEL] 📨 sendMessage called');
+    const sendStart = Date.now();
+    console.log(`[SIDEPANEL] [${new Date().toISOString()}] 📨 sendMessage called`);
     console.log('[SIDEPANEL] 📝 Text:', text);
     console.log('[SIDEPANEL] 🖼️ Has imageData:', !!imageData);
     console.log('[SIDEPANEL] 🖼️ ImageData length:', imageData?.length || 0);
@@ -451,14 +461,14 @@ function App() {
         console.log('[SIDEPANEL] ✅ Added imageData and captureSource to request body');
       }
 
-      console.log('[SIDEPANEL] 📤 Sending fetch request...');
+      console.log(`[SIDEPANEL] [${new Date().toISOString()}] 📤 Sending fetch request to: ${url}`);
       console.log('[SIDEPANEL] 📦 Body keys:', Object.keys(body));
       console.log('[SIDEPANEL] 📦 Full body (without imageData):', JSON.stringify({...body, imageData: imageData ? '[IMAGE_DATA]' : undefined}, null, 2));
 
       // ⏱️ Start timer RIGHT BEFORE sending request to backend
       // This measures actual backend processing time (not capture time)
       requestStartTime.current = Date.now();
-      console.log('[SIDEPANEL] ⏱️ Timer started (fetch about to send):', requestStartTime.current);
+      console.log(`[SIDEPANEL] [${new Date().toISOString()}] ⏱️ Starting fetch request to backend...`);
 
       const res = await fetch(url, {
         method: 'POST',
@@ -469,8 +479,8 @@ function App() {
         body: JSON.stringify(body),
       });
 
-      console.log('[SIDEPANEL] 📬 Response status:', res.status);
-      console.log('[SIDEPANEL] 📬 Response ok:', res.ok);
+      const fetchTime = Date.now() - requestStartTime.current;
+      console.log(`[SIDEPANEL] [${new Date().toISOString()}] 📬 Response received in ${fetchTime}ms - Status: ${res.status}, OK: ${res.ok}`);
 
       if (!res.ok) {
         console.error('[SIDEPANEL] ❌ Response not ok');
@@ -488,9 +498,11 @@ function App() {
         return;
       }
 
-      console.log('[SIDEPANEL] ✅ Request successful, parsing response...');
+      const parseStart = Date.now();
+      console.log(`[SIDEPANEL] [${new Date().toISOString()}] ✅ Request successful, parsing response...`);
       const data = await res.json();
-      console.log('[SIDEPANEL] ✅ Response data received');
+      const parseTime = Date.now() - parseStart;
+      console.log(`[SIDEPANEL] [${new Date().toISOString()}] ✅ Response data parsed in ${parseTime}ms`);
       console.log('[SIDEPANEL] 📊 Session ID:', data.id);
       console.log('[SIDEPANEL] 📊 Messages count:', data.messages?.length || 0);
 
@@ -498,7 +510,7 @@ function App() {
       if (requestStartTime.current) {
         const elapsedTime = (Date.now() - requestStartTime.current) / 1000; // Convert to seconds
         setResponseTime(elapsedTime);
-        console.log('[SIDEPANEL] ⏱️ Response time:', elapsedTime.toFixed(1), 'seconds');
+        console.log(`[SIDEPANEL] [${new Date().toISOString()}] ⏱️ Total backend response time: ${elapsedTime.toFixed(1)}s`);
         requestStartTime.current = null; // Reset timer
       }
 
@@ -506,7 +518,8 @@ function App() {
       setOptimisticMessages([]);
       setSession(data);
       setInput('');
-      console.log('[SIDEPANEL] ✅ Message send complete!');
+      const totalSendTime = Date.now() - sendStart;
+      console.log(`[SIDEPANEL] [${new Date().toISOString()}] ✅ Message send complete! Total sendMessage time: ${totalSendTime}ms`);
     } catch (err: any) {
       console.error('[SIDEPANEL] ❌ Exception in sendMessage:');
       console.error('[SIDEPANEL] ❌ Error:', err);
