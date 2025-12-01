@@ -29,6 +29,7 @@ interface ChatSession {
 function App() {
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [userPlan, setUserPlan] = useState<'FREE' | 'BASIC' | 'PRO' | null>(null);
 
   // Helper function to parse steps from message content
   const parseSteps = (msg: Message): string[] => {
@@ -142,6 +143,31 @@ function App() {
     chrome.storage.onChanged.addListener(storageListener);
     console.log('[SIDEPANEL] ✓ Storage change listener registered');
   }, []);
+
+  // Fetch user plan when token is available
+  useEffect(() => {
+    if (!token) {
+      setUserPlan(null);
+      return;
+    }
+
+    console.log('[SIDEPANEL] 📊 Fetching user plan...');
+    fetch(`${API_URL}/usage/stats`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.plan) {
+          console.log('[SIDEPANEL] ✅ User plan:', data.plan);
+          setUserPlan(data.plan);
+        }
+      })
+      .catch(err => {
+        console.error('[SIDEPANEL] ❌ Failed to fetch user plan:', err);
+      });
+  }, [token]);
 
   // Listen for snip completion - separate useEffect so it has access to current token, mode, and session
   useEffect(() => {
@@ -653,9 +679,10 @@ function App() {
           <button
             className={`mode-btn ${mode === 'EXPERT' ? 'active' : ''}`}
             onClick={() => setMode('EXPERT')}
-            disabled={sending}
+            disabled={sending || (userPlan !== 'PRO' && userPlan !== null)}
+            title={userPlan !== 'PRO' && userPlan !== null ? 'Expert mode is only available for PRO subscribers' : ''}
           >
-            Expert
+            Expert {userPlan !== 'PRO' && userPlan !== null && '🔒'}
           </button>
         </div>
 
