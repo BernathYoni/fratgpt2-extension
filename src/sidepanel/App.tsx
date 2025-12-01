@@ -708,9 +708,9 @@ function App() {
 
         {/* Render real messages from session */}
         {session?.messages.map((msg, idx) => {
-          // In EXPERT mode, skip individual provider messages (GEMINI, OPENAI, CLAUDE)
+          // In EXPERT and REGULAR modes, skip individual provider messages (GEMINI, OPENAI, CLAUDE)
           // Show USER messages and a placeholder for the tabbed interface
-          if (session.mode === 'EXPERT' && msg.role === 'ASSISTANT') {
+          if ((session.mode === 'EXPERT' || session.mode === 'REGULAR') && msg.role === 'ASSISTANT') {
             // Skip individual provider messages, we'll show all of them together in tabs
             // Only render once when we see the first assistant message
             const firstAssistantMsg = session.messages.find(m => m.role === 'ASSISTANT');
@@ -725,8 +725,8 @@ function App() {
                 <img key={i} src={att.imageData} className="message-image" alt="attachment" />
               ))}
 
-              {/* In EXPERT mode with first ASSISTANT message, show tabbed interface */}
-              {msg.role === 'ASSISTANT' && session.mode === 'EXPERT' && (() => {
+              {/* In EXPERT and REGULAR modes with first ASSISTANT message, show tabbed interface */}
+              {msg.role === 'ASSISTANT' && (session.mode === 'EXPERT' || session.mode === 'REGULAR') && (() => {
                 // Check if this is the most recent assistant message to show timer
                 const assistantMessages = session.messages.filter(m => m.role === 'ASSISTANT');
                 const isLatestAssistant = assistantMessages[assistantMessages.length - 1]?.id === msg.id;
@@ -847,7 +847,7 @@ function App() {
                 );
               })()}
 
-            {msg.role === 'ASSISTANT' && session.mode !== 'EXPERT' && msg.shortAnswer && (() => {
+            {msg.role === 'ASSISTANT' && session.mode !== 'EXPERT' && session.mode !== 'REGULAR' && msg.shortAnswer && (() => {
               const msgSteps = parseSteps(msg);
               // Check if this is the most recent assistant message to show timer
               const assistantMessages = session.messages.filter(m => m.role === 'ASSISTANT');
