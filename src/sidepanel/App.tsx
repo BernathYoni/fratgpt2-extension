@@ -30,6 +30,7 @@ function App() {
   const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [userPlan, setUserPlan] = useState<'FREE' | 'BASIC' | 'PRO' | null>(null);
+  const [userRole, setUserRole] = useState<'USER' | 'ADMIN' | null>(null);
 
   // Helper function to parse steps from message content
   const parseSteps = (msg: Message): string[] => {
@@ -144,28 +145,32 @@ function App() {
     console.log('[SIDEPANEL] ✓ Storage change listener registered');
   }, []);
 
-  // Fetch user plan when token is available
+  // Fetch user plan and role when token is available
   useEffect(() => {
     if (!token) {
       setUserPlan(null);
+      setUserRole(null);
       return;
     }
 
-    console.log('[SIDEPANEL] 📊 Fetching user plan...');
-    fetch(`${API_URL}/usage/stats`, {
+    console.log('[SIDEPANEL] 📊 Fetching user plan and role...');
+    // Fetch from /auth/me to get both plan and role
+    fetch(`${API_URL}/auth/me`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     })
       .then(res => res.json())
       .then(data => {
-        if (data.plan) {
-          console.log('[SIDEPANEL] ✅ User plan:', data.plan);
-          setUserPlan(data.plan);
+        if (data.user) {
+          console.log('[SIDEPANEL] ✅ User plan:', data.user.plan);
+          console.log('[SIDEPANEL] ✅ User role:', data.user.role);
+          setUserPlan(data.user.plan);
+          setUserRole(data.user.role);
         }
       })
       .catch(err => {
-        console.error('[SIDEPANEL] ❌ Failed to fetch user plan:', err);
+        console.error('[SIDEPANEL] ❌ Failed to fetch user info:', err);
       });
   }, [token]);
 
@@ -679,10 +684,14 @@ function App() {
           <button
             className={`mode-btn ${mode === 'EXPERT' ? 'active' : ''}`}
             onClick={() => setMode('EXPERT')}
-            disabled={sending || (userPlan !== 'PRO' && userPlan !== null)}
-            title={userPlan !== 'PRO' && userPlan !== null ? 'Expert mode is only available for PRO subscribers' : ''}
+            disabled={sending || (userPlan !== null && userRole !== null && userPlan !== 'PRO' && userRole !== 'ADMIN')}
+            title={
+              userPlan !== null && userRole !== null && userPlan !== 'PRO' && userRole !== 'ADMIN'
+                ? 'Expert mode is only available for PRO subscribers'
+                : (userPlan === null ? 'Loading plan...' : '')
+            }
           >
-            Expert {userPlan !== 'PRO' && userPlan !== null && '🔒'}
+            Expert {userPlan !== null && userRole !== null && userPlan !== 'PRO' && userRole !== 'ADMIN' && '🔒'}
           </button>
         </div>
 
