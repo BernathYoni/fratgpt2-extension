@@ -84,67 +84,6 @@ html, body {
   cursor: not-allowed;
 }
 
-/* V2 Toggle */
-.v2-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.v2-toggle .v2-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: #718096;
-}
-
-/* Switch Toggle Style */
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 32px;
-  height: 18px;
-}
-
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #cbd5e0;
-  transition: .4s;
-  border-radius: 34px;
-}
-
-.slider:before {
-  position: absolute;
-  content: "";
-  height: 14px;
-  width: 14px;
-  left: 2px;
-  bottom: 2px;
-  background-color: white;
-  transition: .4s;
-  border-radius: 50%;
-}
-
-input:checked + .slider {
-  background-color: #f97316;
-}
-
-input:checked + .slider:before {
-  transform: translateX(14px);
-}
-
 /* Action Buttons */
 .action-buttons {
   display: flex;
@@ -250,7 +189,7 @@ input:checked + .slider:before {
   object-fit: contain;
 }
 
-/* Answer Box (V1 & V2 Container) */
+/* Answer Box */
 .answer-box {
   background-color: #ffffff;
   border: 1px solid #e2e8f0;
@@ -411,85 +350,58 @@ textarea:focus {
   text-align: center;
 }
 
-/* ==========================================================================
-   V2 ANSWER COMPONENT STYLES
-   ========================================================================== */
+/* Steps Styling */
+.steps {
+  margin-top: 15px;
+  border-top: 1px dashed #e2e8f0; /* Tailwind gray-200 */
+  padding-top: 15px;
+}
 
-.answer-box.multiple-choice .mc-choice {
-  font-size: 36px;
-  font-weight: bold;
-  color: #38a169; /* Green */
-  text-align: center;
-  margin: 15px 0;
-  background-color: #f0fff4; /* Light green background */
+.step {
+  margin-bottom: 8px;
+  padding-left: 15px;
+  position: relative;
+}
+
+.step:before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 5px;
+  width: 8px;
+  height: 8px;
+  background-color: #a0aec0; /* Tailwind gray-400 */
   border-radius: 50%;
-  width: 60px;
-  height: 60px;
+}
+
+.step strong {
+  color: #1a202c;
+}
+
+.step-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  margin-left: auto;
-  margin-right: auto;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  font-size: 13px;
+  margin-bottom: 4px;
 }
 
-.answer-box.true-false .tf-value {
-  font-size: 28px;
-  font-weight: 800;
-  text-align: center;
-  margin: 15px 0;
-  padding: 12px;
-  border-radius: 8px;
-  text-transform: uppercase;
+.step-content {
+  font-size: 14px;
+  color: #4a5568;
 }
 
-.answer-box.true-false .tf-value.true {
-  color: #22543d;
-  background-color: #c6f6d5;
-  border: 1px solid #9ae6b4;
+.reply-btn {
+  background-color: #ebf8ff; /* Light blue */
+  color: #3182ce; /* Blue */
+  border: 1px solid #bee3f8;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.2s;
 }
 
-.answer-box.true-false .tf-value.false {
-  color: #742a2a;
-  background-color: #fed7d7;
-  border: 1px solid #feb2b2;
-}
-
-.answer-box.fill-blank .fill-blank-text {
-  font-size: 18px;
-  font-weight: 600;
-  color: #2b6cb0;
-  padding: 8px 12px;
-  background-color: #bee3f8;
-  border-radius: 6px;
-  display: inline-block;
-  margin-bottom: 10px;
-  border-bottom: 2px solid #2b6cb0;
-}
-
-.answer-box.coding-answer .code-block {
-  background-color: #1a202c;
-  color: #e2e8f0;
-  padding: 12px;
-  border-radius: 6px;
-  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  font-size: 12px;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  margin-bottom: 10px;
-  border: 1px solid #4a5568;
-}
-
-/* Unknown Type */
-.answer-box.unknown-type {
-  border-left-color: #ecc94b; /* Yellow border */
-}
-
-.answer-box.unknown-type .answer-header {
-  color: #ecc94b; /* Yellow text */
-  border-bottom-color: #f7e9a8;
-}
-
-.answer-box.unknown-type .short-answer {
-  color: #333;
+.reply-btn:hover {
+  background-color: #a0aec0; /* Tailwind gray-400 */
 }
