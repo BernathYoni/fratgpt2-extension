@@ -5,11 +5,14 @@ const API_URL = 'https://api.fratgpt.co';
 type Mode = 'REGULAR' | 'FAST' | 'EXPERT';
 type Tab = 'consensus' | 'gemini' | 'openai' | 'claude';
 
+// V2 types (mirroring backend types.ts)
+type AnswerType = 'MULTIPLE_CHOICE' | 'TRUE_FALSE' | 'FILL_IN_THE_BLANK' | 'SHORT_ANSWER' | 'CODING' | 'UNKNOWN';
+
 interface Message {
   id: string;
   role: 'USER' | 'ASSISTANT';
-  content: string;
-  shortAnswer?: string;
+  content: string; // V1 fallback, may also be debug_raw_answer from V2
+  shortAnswer?: string; // V1 fallback
   steps?: string[];
   provider?: string;
   attachments?: Array<{ imageData?: string; source: string }>;
@@ -18,6 +21,16 @@ interface Message {
     provider: string;
     response: { shortAnswer: string; steps: string[] };
   }>;
+  
+  // V2 Structured Data
+  type?: AnswerType;
+  contentV2?: { // Renamed to avoid conflict with content: string
+    choice?: string;
+    value?: boolean;
+    text?: string;
+    code?: string;
+  };
+  debug_raw_answer?: string;
 }
 
 interface ChatSession {
@@ -32,26 +45,6 @@ function App() {
   const [userPlan, setUserPlan] = useState<'FREE' | 'BASIC' | 'PRO' | null>(null);
   const [userRole, setUserRole] = useState<'USER' | 'ADMIN' | null>(null);
 
-  // Helper function to parse steps from message content
-  const parseSteps = (msg: Message): string[] => {
-    // If steps are directly on the message, use them
-    if (msg.steps && msg.steps.length > 0) {
-      return msg.steps;
-    }
-
-    // Otherwise try to parse from content JSON
-    try {
-      const parsed = JSON.parse(msg.content);
-      if (parsed.steps && Array.isArray(parsed.steps)) {
-        return parsed.steps;
-      }
-    } catch (e) {
-      // Not JSON, ignore
-    }
-
-    return [];
-  };
-
   const [mode, setMode] = useState<Mode>('REGULAR');
   const [session, setSession] = useState<ChatSession | null>(null);
   const [input, setInput] = useState('');
@@ -64,9 +57,37 @@ function App() {
     stepText: string;
   } | null>(null);
   const [responseTime, setResponseTime] = useState<number | null>(null); // Timer for response time
+  const [v2Enabled, setV2Enabled] = useState<boolean>(false); // V2 Feature Flag
 
   const chatRef = useRef<HTMLDivElement>(null);
   const requestStartTime = useRef<number | null>(null); // Track when request started
+
+  // Helper function to parse steps from message content
+  const parseSteps = (msg: Message): string[] => {
+    // Prefer V2 steps if available
+    if (msg.steps && msg.steps.length > 0) {
+      return msg.steps;
+    }
+    // Fallback to V1 content parsing if V2 steps are not present but V1-like content is
+    try {
+      // NOTE: This assumes msg.content might contain a V1-like JSON.
+      // If V2 is enabled, msg.content will actually contain debug_raw_answer from the backend.
+      // We should really be checking msg.shortAnswer for V1 fallback.
+      if (!msg.type && msg.shortAnswer) { // Check if it's a V1 message
+        return msg.steps || [];
+      }
+
+      // If it's V2 but steps are empty, ensure it returns empty.
+      if (msg.type && (!msg.steps || msg.steps.length === 0)) {
+        return [];
+      }
+
+    } catch (e) {
+      // Not JSON, ignore
+    }
+
+    return [];
+  };
 
   // Log mode changes
   useEffect(() => {
@@ -88,57 +109,35 @@ function App() {
     console.log('[SIDEPANEL] 🎬 Sidepanel mounted, loading token...');
     console.log('[SIDEPANEL] ⏰ Time:', new Date().toISOString());
 
-    // Load token from storage
+    // Load token and v2Enabled flag from storage
     console.log('[SIDEPANEL] 📦 Reading from chrome.storage.sync...');
-    chrome.storage.sync.get(['fratgpt_token'], (result) => {
-      console.log('[SIDEPANEL] 📦 Storage read complete');
-      console.log('[SIDEPANEL] 📦 Full result object:', result);
-      console.log('[SIDEPANEL] 📦 Keys in result:', Object.keys(result));
-
+    chrome.storage.sync.get(['fratgpt_token', 'v2Enabled'], (result) => {
       if (chrome.runtime.lastError) {
         console.error('[SIDEPANEL] ❌ Error reading storage:', chrome.runtime.lastError);
       }
 
       if (result.fratgpt_token) {
-        console.log('[SIDEPANEL] ✅ Token found in storage!');
-        console.log('[SIDEPANEL] 🔑 Token preview:', result.fratgpt_token.substring(0, 20) + '...');
-        console.log('[SIDEPANEL] 🔑 Token length:', result.fratgpt_token.length);
-        console.log('[SIDEPANEL] 🔄 Setting token state...');
         setToken(result.fratgpt_token);
-        console.log('[SIDEPANEL] ✅ Token state updated');
-      } else {
-        console.log('[SIDEPANEL] ❌ No token in storage');
-        console.log('[SIDEPANEL] ℹ️ User needs to log in on website');
+      }
+      if (typeof result.v2Enabled === 'boolean') {
+        setV2Enabled(result.v2Enabled);
       }
     });
 
-    // Listen for storage changes (token updates from website)
-    console.log('[SIDEPANEL] 🔊 Registering storage change listener...');
+    // Listen for storage changes (token updates from website, v2Enabled toggle)
     const storageListener = (changes: any, namespace: string) => {
-      console.log('='.repeat(80));
-      console.log('[SIDEPANEL] 🔔 STORAGE CHANGED EVENT!');
-      console.log('[SIDEPANEL] ⏰ Time:', new Date().toISOString());
-      console.log('[SIDEPANEL] 📦 Namespace:', namespace);
-      console.log('[SIDEPANEL] 📦 Full changes object:', changes);
-      console.log('[SIDEPANEL] 📦 Changes keys:', Object.keys(changes));
-
       if (namespace === 'sync' && changes.fratgpt_token) {
-        console.log('[SIDEPANEL] ✅ Detected fratgpt_token change!');
-        console.log('[SIDEPANEL] Old value:', changes.fratgpt_token.oldValue ? changes.fratgpt_token.oldValue.substring(0, 20) + '...' : 'NONE');
-        console.log('[SIDEPANEL] New value:', changes.fratgpt_token.newValue ? changes.fratgpt_token.newValue.substring(0, 20) + '...' : 'NONE');
-
         if (changes.fratgpt_token.newValue) {
-          console.log('[SIDEPANEL] 🔄 Updating token state with new value...');
           setToken(changes.fratgpt_token.newValue);
-          console.log('[SIDEPANEL] ✅ Token state updated - user should now be logged in!');
         } else {
-          console.log('[SIDEPANEL] 🚪 Token removed, logging out');
           setToken(null);
         }
-      } else {
-        console.log('[SIDEPANEL] ℹ️ Storage change not relevant to token');
       }
-      console.log('='.repeat(80));
+      if (namespace === 'sync' && changes.v2Enabled) {
+        if (typeof changes.v2Enabled.newValue === 'boolean') {
+          setV2Enabled(changes.v2Enabled.newValue);
+        }
+      }
     };
 
     chrome.storage.onChanged.addListener(storageListener);
@@ -176,28 +175,14 @@ function App() {
 
   // Listen for snip completion - separate useEffect so it has access to current token, mode, and session
   useEffect(() => {
-    console.log('[SIDEPANEL] 🔊 Setting up message listener with current state...');
-    console.log('[SIDEPANEL] 🔐 Token available:', !!token);
-    console.log('[SIDEPANEL] 🎯 Current mode:', mode);
-    console.log('[SIDEPANEL] 💼 Current session:', session?.id || 'none');
-
     const messageListener = (message: any) => {
-      console.log('[SIDEPANEL] 📨 Message received in listener:', message);
       if (message.type === 'SNIP_COMPLETE') {
-        console.log('[SIDEPANEL] ✅ SNIP_COMPLETE message detected!');
-        console.log('[SIDEPANEL] 🔐 Token in closure:', !!token);
-        console.log('[SIDEPANEL] 🎯 Mode in closure:', mode);
-        console.log('[SIDEPANEL] 💼 Session in closure:', session?.id || 'none');
         handleSnipComplete(message.coords);
       }
     };
 
     chrome.runtime.onMessage.addListener(messageListener);
-    console.log('[SIDEPANEL] ✅ Message listener registered');
-
-    // Cleanup
     return () => {
-      console.log('[SIDEPANEL] 🧹 Removing message listener');
       chrome.runtime.onMessage.removeListener(messageListener);
     };
   }, [token, mode, session]); // Re-register when token, mode, or session changes to capture fresh values in closure
@@ -213,13 +198,9 @@ function App() {
     const startTime = Date.now();
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`[SCREEN] [${new Date().toISOString()}] 🎬 handleScreen START`);
-    console.log('[SCREEN] Current mode:', mode);
-    console.log('[SCREEN] Current session:', session?.id || 'none');
-    console.log('[SCREEN] Session mode:', session?.mode || 'none');
 
     try {
       const captureStart = Date.now();
-      console.log(`[SCREEN] [${new Date().toISOString()}] 📸 Requesting screen capture...`);
       const response: any = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: 'CAPTURE_SCREEN' }, resolve);
       });
@@ -229,10 +210,6 @@ function App() {
         return;
       }
 
-      const captureTime = Date.now() - captureStart;
-      console.log(`[SCREEN] [${new Date().toISOString()}] ✅ Screen captured in ${captureTime}ms`);
-
-      // Add optimistic user message immediately
       const userMessage: Message = {
         id: `temp-user-${Date.now()}`,
         role: 'USER',
@@ -243,22 +220,16 @@ function App() {
         }]
       };
 
-      // Add thinking message
       const thinkingMessage: Message = {
         id: `temp-thinking-${Date.now()}`,
         role: 'ASSISTANT',
         content: 'Thinking...',
       };
 
-      console.log(`[SCREEN] [${new Date().toISOString()}] 📝 Creating optimistic messages`);
       setOptimisticMessages([userMessage, thinkingMessage]);
       setInput('');
 
-      console.log(`[SCREEN] [${new Date().toISOString()}] 🚀 Calling sendMessage with mode: ${mode}, source: SCREEN`);
       await sendMessage(input || 'Solve this problem', response.imageData, 'SCREEN');
-      const totalTime = Date.now() - startTime;
-      console.log(`[SCREEN] [${new Date().toISOString()}] ✅ handleScreen COMPLETE - Total time: ${totalTime}ms`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (error) {
       console.error('[SCREEN] ❌ ERROR:', error);
       alert('Failed to capture screen');
@@ -267,114 +238,58 @@ function App() {
   };
 
   const handleSnip = async () => {
-
     try {
-      console.log('[SIDEPANEL] 🎯 handleSnip called - starting snip mode');
-
-      // Get active tab
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      console.log('[SIDEPANEL] 📑 Active tab:', tab);
-
       if (!tab.id) {
-        console.error('[SIDEPANEL] ❌ No tab ID found');
         alert('Failed to start snip mode: No active tab');
         return;
       }
 
-      console.log('[SIDEPANEL] ✅ Tab ID:', tab.id);
-      console.log('[SIDEPANEL] 🌐 Tab URL:', tab.url);
-
-      // Check if we can access this tab (some pages like chrome:// are restricted)
       if (tab.url?.startsWith('chrome://') || tab.url?.startsWith('chrome-extension://')) {
-        console.error('[SIDEPANEL] ❌ Cannot inject into chrome:// or extension pages');
         alert('Cannot use snip mode on this page. Please try on a regular website.');
         return;
       }
 
-      console.log('[SIDEPANEL] 📤 Sending START_SNIP message to tab', tab.id);
-
-      // Try to send message to content script
       chrome.tabs.sendMessage(tab.id, { type: 'START_SNIP' }, (response) => {
         const lastError = chrome.runtime.lastError;
-
         if (lastError) {
-          console.error('[SIDEPANEL] ❌ Error sending message:', lastError);
-          console.error('[SIDEPANEL] ❌ Error message:', lastError.message);
-          console.log('[SIDEPANEL] 🔄 Content script may not be injected yet, trying to inject...');
-
-          // Content script not loaded - try to inject it programmatically
           chrome.scripting.executeScript({
             target: { tabId: tab.id! },
             files: ['content.js']
           }, () => {
             const injectionError = chrome.runtime.lastError;
             if (injectionError) {
-              console.error('[SIDEPANEL] ❌ Failed to inject content script:', injectionError);
               alert('Failed to start snip mode: Could not inject content script. Error: ' + injectionError.message);
             } else {
-              console.log('[SIDEPANEL] ✅ Content script injected, retrying START_SNIP...');
-              // Wait a bit for script to initialize
               setTimeout(() => {
                 chrome.tabs.sendMessage(tab.id!, { type: 'START_SNIP' }, (retryResponse) => {
                   if (chrome.runtime.lastError) {
-                    console.error('[SIDEPANEL] ❌ Still failed after injection:', chrome.runtime.lastError);
                     alert('Failed to start snip mode even after injection: ' + chrome.runtime.lastError.message);
-                  } else {
-                    console.log('[SIDEPANEL] ✅ START_SNIP sent successfully after injection');
                   }
                 });
               }, 100);
             }
           });
-        } else {
-          console.log('[SIDEPANEL] ✅ START_SNIP message sent successfully');
-          console.log('[SIDEPANEL] 📬 Response:', response);
         }
       });
     } catch (error: any) {
-      console.error('[SIDEPANEL] ❌ Exception in handleSnip:');
-      console.error('[SIDEPANEL] ❌ Error name:', error?.name);
-      console.error('[SIDEPANEL] ❌ Error message:', error?.message);
-      console.error('[SIDEPANEL] ❌ Error stack:', error?.stack);
       alert('Failed to start snip mode: ' + (error?.message || 'Unknown error'));
     }
   };
 
   const handleSnipComplete = async (coords: any) => {
-    const startTime = Date.now();
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`[SNIP] [${new Date().toISOString()}] 🎬 handleSnipComplete START`);
-    console.log('[SNIP] Current mode:', mode);
-    console.log('[SNIP] Current session:', session?.id || 'none');
-    console.log('[SNIP] Session mode:', session?.mode || 'none');
-    console.log('[SNIP] 📏 Coordinates:', JSON.stringify(coords, null, 2));
-
     try {
-      const captureStart = Date.now();
-      console.log(`[SNIP] [${new Date().toISOString()}] 📤 Sending CAPTURE_SNIP message to background...`);
-
       const response: any = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: 'CAPTURE_SNIP', coords }, (response) => {
-          console.log(`[SNIP] [${new Date().toISOString()}] 📬 Received response from background:`, response);
           resolve(response);
         });
       });
 
-      const captureTime = Date.now() - captureStart;
-      console.log(`[SNIP] [${new Date().toISOString()}] 🔍 Checking response... (capture took ${captureTime}ms)`);
       if (response.error) {
-        console.error('[SNIP] ❌ Error in response:', response.error);
         alert('Failed to capture snip: ' + response.error);
-        console.log('[SNIP] ❌ handleSnipComplete FAILED');
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         return;
       }
 
-      console.log(`[SNIP] [${new Date().toISOString()}] ✅ Snip captured successfully in ${captureTime}ms!`);
-      console.log('[SNIP] 📊 Image data length:', response.imageData?.length || 0);
-      console.log(`[SNIP] [${new Date().toISOString()}] 💬 Creating optimistic messages...`);
-
-      // Add optimistic user message immediately
       const userMessage: Message = {
         id: `temp-user-${Date.now()}`,
         role: 'USER',
@@ -385,121 +300,53 @@ function App() {
         }]
       };
 
-      // Add thinking message
       const thinkingMessage: Message = {
         id: `temp-thinking-${Date.now()}`,
         role: 'ASSISTANT',
         content: 'Thinking...',
       };
 
-      console.log(`[SNIP] [${new Date().toISOString()}] 📝 Setting optimistic messages...`);
       setOptimisticMessages([userMessage, thinkingMessage]);
       setInput('');
 
-      console.log(`[SNIP] [${new Date().toISOString()}] 🚀 About to call sendMessage`);
-      console.log('[SNIP] 🚀 Mode being passed:', mode);
-      console.log('[SNIP] 🚀 Capture source:', 'SNIP');
-      console.log('[SNIP] 🚀 Message text:', input || 'Solve this problem');
       await sendMessage(input || 'Solve this problem', response.imageData, 'SNIP');
-
-      const totalTime = Date.now() - startTime;
-      console.log(`[SNIP] [${new Date().toISOString()}] ✅ sendMessage completed`);
-      console.log(`[SNIP] [${new Date().toISOString()}] ✅ handleSnipComplete COMPLETE - Total time: ${totalTime}ms`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (error: any) {
-      console.error('[SNIP] ❌ EXCEPTION CAUGHT:');
-      console.error('[SNIP] ❌ Error name:', error?.name);
-      console.error('[SNIP] ❌ Error message:', error?.message);
-      console.error('[SNIP] ❌ Error stack:', error?.stack);
-      console.error('[SNIP] ❌ Full error:', error);
       alert('Failed to capture snip: ' + (error?.message || 'Unknown error'));
       setOptimisticMessages([]);
-      console.log('[SNIP] ❌ handleSnipComplete FAILED');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     }
   };
 
   const sendMessage = async (text: string, imageData?: string, captureSource?: string) => {
-    const sendStart = Date.now();
-    console.log(`[SIDEPANEL] [${new Date().toISOString()}] 📨 sendMessage called`);
-    console.log('[SIDEPANEL] 📝 Text:', text);
-    console.log('[SIDEPANEL] 🖼️ Has imageData:', !!imageData);
-    console.log('[SIDEPANEL] 🖼️ ImageData length:', imageData?.length || 0);
-    console.log('[SIDEPANEL] 📷 Capture source:', captureSource);
-    console.log('[SIDEPANEL] 🔐 Has token:', !!token);
-    console.log('[SIDEPANEL] 🎯 Current mode state:', mode);
-    console.log('[SIDEPANEL] 💼 Has session:', !!session);
-    console.log('[SIDEPANEL] 📊 Session ID:', session?.id || 'none');
-
-    if (!text.trim() && !imageData) {
-      console.log('[SIDEPANEL] ⚠️ No text or image, returning early');
-      return;
-    }
-    if (!token) {
-      console.log('[SIDEPANEL] ⚠️ No token, returning early');
-      return;
-    }
-
-    console.log('[SIDEPANEL] 🚀 Starting message send...');
     setSending(true);
     setError('');
 
     try {
-      // 🎯 SMART DETECTION: New capture vs text follow-up
-      // - Screen/Snip (imageData present) → ALWAYS start new session (/chat/start)
-      // - Text follow-up (no imageData) → Continue session (/:sessionId/message)
       const isNewCapture = !!imageData;
-      const isTextFollowup = !imageData && !!session;
-
-      console.log('[SIDEPANEL] 🧠 Smart detection:');
-      console.log('[SIDEPANEL]    isNewCapture:', isNewCapture);
-      console.log('[SIDEPANEL]    isTextFollowup:', isTextFollowup);
 
       const url = isNewCapture
-        ? `${API_URL}/chat/start` // New capture → always create new session
+        ? `${API_URL}/chat/start`
         : (session
-            ? `${API_URL}/chat/${session.id}/message` // Text follow-up → use existing session
-            : `${API_URL}/chat/start`); // First message ever → create session
-
-      console.log('[SIDEPANEL] 🌐 API URL:', url);
-      console.log('[SIDEPANEL] 💡 Reasoning:', isNewCapture
-        ? 'New capture detected - creating fresh session (no conversation history sent)'
-        : (isTextFollowup
-            ? 'Text follow-up detected - continuing session (conversation history sent, NO images)'
-            : 'First message ever - creating new session'));
+            ? `${API_URL}/chat/${session.id}/message`
+            : `${API_URL}/chat/start`);
 
       const body: any = {
         message: text,
       };
 
-      // Include mode for: new sessions OR new captures
       const shouldIncludeMode = !session || isNewCapture;
-      console.log('[SIDEPANEL] 🔍 Mode inclusion check:');
-      console.log('[SIDEPANEL]    !session:', !session);
-      console.log('[SIDEPANEL]    isNewCapture:', isNewCapture);
-      console.log('[SIDEPANEL]    shouldIncludeMode:', shouldIncludeMode);
-
       if (shouldIncludeMode) {
         body.mode = mode;
-        console.log('[SIDEPANEL] ✅ Including mode in request:', mode);
-      } else {
-        console.log('[SIDEPANEL] ⚠️ NOT including mode (will use session mode)');
       }
 
       if (imageData) {
         body.imageData = imageData;
         body.captureSource = captureSource;
-        console.log('[SIDEPANEL] ✅ Added imageData and captureSource to request body');
       }
 
-      console.log(`[SIDEPANEL] [${new Date().toISOString()}] 📤 Sending fetch request to: ${url}`);
-      console.log('[SIDEPANEL] 📦 Body keys:', Object.keys(body));
-      console.log('[SIDEPANEL] 📦 Full body (without imageData):', JSON.stringify({...body, imageData: imageData ? '[IMAGE_DATA]' : undefined}, null, 2));
+      // Add V2 feature flag to request body
+      body.v2 = v2Enabled;
 
-      // ⏱️ Start timer RIGHT BEFORE sending request to backend
-      // This measures actual backend processing time (not capture time)
       requestStartTime.current = Date.now();
-      console.log(`[SIDEPANEL] [${new Date().toISOString()}] ⏱️ Starting fetch request to backend...`);
 
       const res = await fetch(url, {
         method: 'POST',
@@ -510,56 +357,31 @@ function App() {
         body: JSON.stringify(body),
       });
 
-      const fetchTime = Date.now() - requestStartTime.current;
-      console.log(`[SIDEPANEL] [${new Date().toISOString()}] 📬 Response received in ${fetchTime}ms - Status: ${res.status}, OK: ${res.ok}`);
-
       if (!res.ok) {
-        console.error('[SIDEPANEL] ❌ Response not ok');
         const error = await res.json();
-        console.error('[SIDEPANEL] ❌ Error response:', error);
-
         if (error.code === 'DAILY_LIMIT_REACHED') {
-          const errorMsg = `Daily limit reached! Upgrade to ${error.plan === 'FREE' ? 'Basic or Pro' : 'Pro'} for more solves.`;
-          console.error('[SIDEPANEL] ❌ Daily limit:', errorMsg);
-          setError(errorMsg);
+          setError(`Daily limit reached! Upgrade to ${error.plan === 'FREE' ? 'Basic or Pro' : 'Pro'} for more solves.`);
         } else {
-          console.error('[SIDEPANEL] ❌ Other error:', error.error);
           throw new Error(error.error || 'Request failed');
         }
         return;
       }
 
-      const parseStart = Date.now();
-      console.log(`[SIDEPANEL] [${new Date().toISOString()}] ✅ Request successful, parsing response...`);
       const data = await res.json();
-      const parseTime = Date.now() - parseStart;
-      console.log(`[SIDEPANEL] [${new Date().toISOString()}] ✅ Response data parsed in ${parseTime}ms`);
-      console.log('[SIDEPANEL] 📊 Session ID:', data.id);
-      console.log('[SIDEPANEL] 📊 Messages count:', data.messages?.length || 0);
-
-      // ⏱️ Calculate response time
+      
       if (requestStartTime.current) {
-        const elapsedTime = (Date.now() - requestStartTime.current) / 1000; // Convert to seconds
+        const elapsedTime = (Date.now() - requestStartTime.current) / 1000;
         setResponseTime(elapsedTime);
-        console.log(`[SIDEPANEL] [${new Date().toISOString()}] ⏱️ Total backend response time: ${elapsedTime.toFixed(1)}s`);
-        requestStartTime.current = null; // Reset timer
+        requestStartTime.current = null;
       }
 
-      // Clear optimistic messages and show real response
       setOptimisticMessages([]);
       setSession(data);
       setInput('');
-      const totalSendTime = Date.now() - sendStart;
-      console.log(`[SIDEPANEL] [${new Date().toISOString()}] ✅ Message send complete! Total sendMessage time: ${totalSendTime}ms`);
     } catch (err: any) {
-      console.error('[SIDEPANEL] ❌ Exception in sendMessage:');
-      console.error('[SIDEPANEL] ❌ Error:', err);
-      console.error('[SIDEPANEL] ❌ Error message:', err.message);
-      console.error('[SIDEPANEL] ❌ Error stack:', err.stack);
       setError(err.message);
       setOptimisticMessages([]);
     } finally {
-      console.log('[SIDEPANEL] 🏁 Finally block - setting sending to false');
       setSending(false);
     }
   };
@@ -586,6 +408,12 @@ function App() {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleV2Toggle = () => {
+    const newState = !v2Enabled;
+    setV2Enabled(newState);
+    chrome.storage.sync.set({ v2Enabled: newState });
   };
 
   if (!token) {
@@ -693,6 +521,15 @@ function App() {
           >
             Expert {userPlan !== null && userRole !== null && userPlan !== 'PRO' && userRole !== 'ADMIN' && '🔒'}
           </button>
+        </div>
+
+        {/* V2 Feature Toggle */}
+        <div className="v2-toggle">
+          <label className="switch">
+            <input type="checkbox" checked={v2Enabled} onChange={handleV2Toggle} />
+            <span className="slider round"></span>
+          </label>
+          <span className="v2-label">Beta UI</span>
         </div>
 
         <div className="action-buttons">
@@ -856,17 +693,16 @@ function App() {
                 );
               })()}
 
-            {msg.role === 'ASSISTANT' && session.mode !== 'EXPERT' && session.mode !== 'REGULAR' && msg.shortAnswer && (() => {
+            {msg.role === 'ASSISTANT' && session.mode !== 'EXPERT' && session.mode !== 'REGULAR' && (() => {
               const msgSteps = parseSteps(msg);
               // Check if this is the most recent assistant message to show timer
               const assistantMessages = session.messages.filter(m => m.role === 'ASSISTANT');
               const isLatestAssistant = assistantMessages[assistantMessages.length - 1]?.id === msg.id;
 
+              const isV2Response = v2Enabled && msg.type && msg.contentV2;
+
               return (
                 <div className="answer-box">
-                  <div className="answer-label">Final Answer</div>
-                  <div className="short-answer">{msg.shortAnswer}</div>
-
                   {/* ⏱️ Display response time for latest message */}
                   {isLatestAssistant && responseTime !== null && (
                     <div style={{
@@ -883,25 +719,42 @@ function App() {
                     </div>
                   )}
 
-                  {msgSteps.length > 0 ? (
-                    <div className="steps">
-                      {msgSteps.map((step, idx) => (
-                        <div key={idx} className="step">
-                          <div className="step-header">
-                            <strong>Step {idx + 1}:</strong>
-                            <button
-                              className="reply-btn"
-                              onClick={() => handleReplyToStep(msg.id, idx, step)}
-                            >
-                              Reply
-                            </button>
-                          </div>
-                          <div className="step-content">{step}</div>
-                        </div>
-                      ))}
+                  {/* Debug Info for V2 */}
+                  {isV2Response && msg.type && (
+                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', marginBottom: '8px', display: 'inline-block', padding: '4px 8px', borderRadius: '4px', backgroundColor: '#e0f2f7' }}>
+                      Type: {msg.type}
                     </div>
+                  )}
+
+                  {isV2Response ? (
+                    // Render V2 Answer based on type
+                    <V2AnswerRenderer message={msg} handleReplyToStep={handleReplyToStep} />
                   ) : (
-                    <div className="explanation">{msg.content}</div>
+                    // Render V1 Answer
+                    <>
+                      <div className="answer-label">Final Answer</div>
+                      <div className="short-answer">{msg.shortAnswer}</div>
+                      {msgSteps.length > 0 ? (
+                        <div className="steps">
+                          {msgSteps.map((step, idx) => (
+                            <div key={idx} className="step">
+                              <div className="step-header">
+                                <strong>Step {idx + 1}:</strong>
+                                <button
+                                  className="reply-btn"
+                                  onClick={() => handleReplyToStep(msg.id, idx, step)}
+                                >
+                                  Reply
+                                </button>
+                              </div>
+                              <div className="step-content">{step}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="explanation">{msg.content}</div>
+                      )}
+                    </>
                   )}
                 </div>
               );
@@ -960,5 +813,99 @@ function App() {
     </div>
   );
 }
+
+// =========================================================================================================
+// V2 Answer Renderer Component
+// =========================================================================================================
+
+interface V2AnswerRendererProps {
+  message: Message;
+  handleReplyToStep: (messageId: string, stepIndex: number, stepText: string) => void;
+}
+
+const V2AnswerRenderer: React.FC<V2AnswerRendererProps> = ({ message, handleReplyToStep }) => {
+  if (!message.type || !message.contentV2) {
+    return <div className="answer-box">Error: Invalid V2 response format.</div>;
+  }
+
+  const renderSteps = (steps: string[]) => {
+    if (!steps || steps.length === 0) return null;
+    return (
+      <div className="steps">
+        <h3>Steps:</h3>
+        {steps.map((step, idx) => (
+          <div key={idx} className="step">
+            <strong>Step {idx + 1}:</strong> {step}
+            <button
+              className="reply-btn"
+              onClick={() => handleReplyToStep(message.id, idx, step)}
+            >
+              Reply
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  switch (message.type) {
+    case 'MULTIPLE_CHOICE':
+      return (
+        <div className="answer-box multiple-choice">
+          <div className="answer-header">Multiple Choice Answer</div>
+          <div className="mc-choice">{message.contentV2.choice}</div>
+          <div className="short-answer">{message.debug_raw_answer || `Choice: ${message.contentV2.choice}`}</div>
+          {renderSteps(message.steps || [])}
+        </div>
+      );
+    case 'TRUE_FALSE':
+      return (
+        <div className="answer-box true-false">
+          <div className="answer-header">True/False Answer</div>
+          <div className={`tf-value ${message.contentV2.value ? 'true' : 'false'}`}>
+            {message.contentV2.value ? 'TRUE' : 'FALSE'}
+          </div>
+          <div className="short-answer">{message.debug_raw_answer || `Value: ${String(message.contentV2.value).toUpperCase()}`}</div>
+          {renderSteps(message.steps || [])}
+        </div>
+      );
+    case 'FILL_IN_THE_BLANK':
+      return (
+        <div className="answer-box fill-blank">
+          <div className="answer-header">Fill-in-the-Blank Answer</div>
+          <div className="fill-blank-text">{message.contentV2.text}</div>
+          <div className="short-answer">{message.debug_raw_answer || `Answer: ${message.contentV2.text}`}</div>
+          {renderSteps(message.steps || [])}
+        </div>
+      );
+    case 'SHORT_ANSWER':
+      return (
+        <div className="answer-box short-answer-type">
+          <div className="answer-header">Short Answer</div>
+          <div className="short-answer-text">{message.contentV2.text}</div>
+          <div className="short-answer">{message.debug_raw_answer || `Answer: ${message.contentV2.text}`}</div>
+          {renderSteps(message.steps || [])}
+        </div>
+      );
+    case 'CODING':
+      return (
+        <div className="answer-box coding-answer">
+          <div className="answer-header">Code Answer</div>
+          <pre className="code-block">{message.contentV2.code}</pre>
+          <div className="short-answer">{message.debug_raw_answer || 'Code provided'}</div>
+          {renderSteps(message.steps || [])}
+        </div>
+      );
+    case 'UNKNOWN':
+    default:
+      return (
+        <div className="answer-box unknown-type">
+          <div className="answer-header">Answer (Unknown Type)</div>
+          <div className="short-answer">{message.debug_raw_answer || message.shortAnswer || message.content}</div>
+          {renderSteps(message.steps || [])}
+        </div>
+      );
+  }
+};
 
 export default App;
