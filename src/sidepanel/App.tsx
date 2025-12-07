@@ -11,6 +11,7 @@ interface Message {
   content: string;
   shortAnswer?: string;
   provider?: string;
+  questionType?: string;
   attachments?: Array<{ imageData?: string; source: string }>;
   metadata?: { error?: string };
   providers?: Array<{
@@ -150,6 +151,16 @@ function App() {
       }
 
       const data = await res.json();
+      console.log('🔍 [Extension DEBUG] Raw API Response:', JSON.stringify(data, null, 2));
+      if (data.messages) {
+        console.log('🔍 [Extension DEBUG] Messages check:', data.messages.map((m: any) => ({
+          role: m.role,
+          provider: m.provider,
+          questionType: m.questionType,
+          shortAnswer: m.shortAnswer?.substring(0, 20)
+        })));
+      }
+      
       if (requestStartTime.current) {
         setResponseTime((Date.now() - requestStartTime.current) / 1000);
         requestStartTime.current = null;
@@ -199,7 +210,10 @@ function App() {
               
               {msg.role === 'ASSISTANT' && (session.mode === 'EXPERT' || session.mode === 'REGULAR') ? (
                 <div className="answer-box" style={{ maxWidth: '100%' }}>
-                  {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280' }}>
+                    {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
+                    {msg.questionType && <div className="question-type">🏷️ {msg.questionType.replace(/[-_]/g, ' ').toUpperCase()}</div>}
+                  </div>
                   <div className="tabs">
                     {['gemini', 'openai', 'claude'].map(t => (
                       <button key={t} className={`tab ${selectedTab === t ? 'active' : ''}`} onClick={() => setSelectedTab(t as Tab)}>
@@ -219,6 +233,10 @@ function App() {
                 </div>
               ) : msg.role === 'ASSISTANT' ? (
                 <div className="answer-box">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280' }}>
+                    {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
+                    {msg.questionType && <div className="question-type">🏷️ {msg.questionType.replace(/[-_]/g, ' ').toUpperCase()}</div>}
+                  </div>
                   <div className="answer-label">Final Answer</div>
                   <div className="short-answer">{msg.shortAnswer}</div>
                 </div>
