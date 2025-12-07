@@ -267,6 +267,17 @@ function App() {
                         ) : (
                           <div className="short-answer">{providerMsg.shortAnswer}</div>
                         )}
+                        
+                        {providerMsg.structuredAnswer?.explanation && (
+                          <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
+                            <details style={{ cursor: 'pointer' }}>
+                              <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Explanation</summary>
+                              <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
+                                {providerMsg.structuredAnswer.explanation}
+                              </div>
+                            </details>
+                          </div>
+                        )}
                       </>
                     );
                   })()}
@@ -302,6 +313,17 @@ function App() {
                     </div>
                   ) : (
                     <div className="short-answer">{msg.shortAnswer}</div>
+                  )}
+                  
+                  {msg.structuredAnswer?.explanation && (
+                    <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
+                      <details style={{ cursor: 'pointer' }}>
+                        <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Explanation</summary>
+                        <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
+                          {msg.structuredAnswer.explanation}
+                        </div>
+                      </details>
+                    </div>
                   )}
                 </div>
               ) : (
