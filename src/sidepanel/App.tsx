@@ -12,6 +12,7 @@ interface Message {
   shortAnswer?: string;
   provider?: string;
   questionType?: string;
+  structuredAnswer?: any;
   attachments?: Array<{ imageData?: string; source: string }>;
   metadata?: { error?: string };
   providers?: Array<{
@@ -223,12 +224,45 @@ function App() {
                   </div>
                   {(() => {
                     const providerMsg = session.messages.find(m => m.provider?.toLowerCase() === selectedTab.toLowerCase() && m.role === 'ASSISTANT');
-                    return providerMsg ? (
+                    
+                    if (!providerMsg) return <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>No response</div>;
+
+                    const isMultipleChoice = providerMsg.questionType === 'MULTIPLE_CHOICE' && 
+                                           providerMsg.structuredAnswer?.content?.options && 
+                                           Array.isArray(providerMsg.structuredAnswer.content.options);
+
+                    return (
                       <>
                         <div className="answer-label">Answer from {selectedTab.charAt(0).toUpperCase() + selectedTab.slice(1)}</div>
-                        <div className="short-answer">{providerMsg.shortAnswer}</div>
+                        
+                        {isMultipleChoice ? (
+                          <div className="mc-options" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+                            {providerMsg.structuredAnswer.content.options.map((opt: string, i: number) => {
+                              const choice = providerMsg.structuredAnswer.content.choice;
+                              // Check if this option starts with the choice letter (e.g. "A." or "A)") or matches the text
+                              const isSelected = opt.startsWith(choice + '.') || opt.startsWith(choice + ')') || opt === choice;
+                              
+                              return (
+                                <div key={i} style={{ 
+                                  padding: '8px 12px', 
+                                  borderRadius: '6px', 
+                                  background: isSelected ? '#ecfdf5' : '#f3f4f6',
+                                  border: isSelected ? '1px solid #10b981' : '1px solid transparent',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  fontSize: '14px'
+                                }}>
+                                  {isSelected && <span style={{ marginRight: '8px' }}>✅</span>}
+                                  {opt}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="short-answer">{providerMsg.shortAnswer}</div>
+                        )}
                       </>
-                    ) : <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>No response</div>;
+                    );
                   })()}
                 </div>
               ) : msg.role === 'ASSISTANT' ? (
@@ -238,7 +272,31 @@ function App() {
                     {msg.questionType && <div className="question-type">🏷️ {msg.questionType.replace(/[-_]/g, ' ').toUpperCase()}</div>}
                   </div>
                   <div className="answer-label">Final Answer</div>
-                  <div className="short-answer">{msg.shortAnswer}</div>
+                  {msg.questionType === 'MULTIPLE_CHOICE' && msg.structuredAnswer?.content?.options && Array.isArray(msg.structuredAnswer.content.options) ? (
+                    <div className="mc-options" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+                      {msg.structuredAnswer.content.options.map((opt: string, i: number) => {
+                        const choice = msg.structuredAnswer.content.choice;
+                        const isSelected = opt.startsWith(choice + '.') || opt.startsWith(choice + ')') || opt === choice;
+                        
+                        return (
+                          <div key={i} style={{ 
+                            padding: '8px 12px', 
+                            borderRadius: '6px', 
+                            background: isSelected ? '#ecfdf5' : '#f3f4f6',
+                            border: isSelected ? '1px solid #10b981' : '1px solid transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            fontSize: '14px'
+                          }}>
+                            {isSelected && <span style={{ marginRight: '8px' }}>✅</span>}
+                            {opt}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="short-answer">{msg.shortAnswer}</div>
+                  )}
                 </div>
               ) : (
                 <div className="message-bubble">{msg.content}</div>
