@@ -83,6 +83,9 @@ function App() {
 
   const handleScreen = async () => {
     try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const currentUrl = tab?.url;
+
       const response: any = await new Promise((resolve) => {
         chrome.runtime.sendMessage({ type: 'CAPTURE_SCREEN' }, resolve);
       });
@@ -94,7 +97,7 @@ function App() {
       };
       setOptimisticMessages([userMessage, { id: `think-${Date.now()}`, role: 'ASSISTANT', content: 'Thinking...' }]);
       setInput('');
-      await sendMessage(input || 'Solve this', response.imageData, 'SCREEN');
+      await sendMessage(input || 'Solve this', response.imageData, 'SCREEN', currentUrl);
     } catch (e: any) { alert(e.message); setOptimisticMessages([]); }
   };
 
@@ -115,6 +118,7 @@ function App() {
 
   const handleSnipComplete = async (coords: any) => {
     try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const response: any = await new Promise((resolve) => chrome.runtime.sendMessage({ type: 'CAPTURE_SNIP', coords }, resolve));
       if (response.error) { alert('Failed: ' + response.error); return; }
 
@@ -124,11 +128,20 @@ function App() {
       };
       setOptimisticMessages([userMessage, { id: `think-${Date.now()}`, role: 'ASSISTANT', content: 'Thinking...' }]);
       setInput('');
-      await sendMessage(input || 'Solve this', response.imageData, 'SNIP');
+      await sendMessage(input || 'Solve this', response.imageData, 'SNIP', tab?.url);
     } catch (e: any) { alert(e.message); setOptimisticMessages([]); }
   };
 
-  const sendMessage = async (text: string, imageData?: string, captureSource?: string) => {
+  const logInteraction = async (type: string, metadata: any) => {
+    if (!session || !token) return;
+    fetch(`${API_URL}/chat/${session.id}/interaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ type, metadata }),
+    }).catch(e => console.error('Log failed', e));
+  };
+
+  const sendMessage = async (text: string, imageData?: string, captureSource?: string, sourceUrl?: string) => {
     setSending(true);
     setError('');
     try {
@@ -138,6 +151,7 @@ function App() {
       const body: any = { message: text };
       if (!session || isNewCapture) body.mode = mode;
       if (imageData) { body.imageData = imageData; body.captureSource = captureSource; }
+      if (sourceUrl) body.sourceUrl = sourceUrl;
 
       requestStartTime.current = Date.now();
       const res = await fetch(url, {
@@ -223,7 +237,7 @@ function App() {
                   })()}
                   <div className="tabs">
                     {['gemini', 'openai', 'claude'].map(t => (
-                      <button key={t} className={`tab ${selectedTab === t ? 'active' : ''}`} onClick={() => setSelectedTab(t as Tab)}>
+                      <button key={t} className={`tab ${selectedTab === t ? 'active' : ''}`} onClick={() => { logInteraction('TAB_VIEW', { provider: t }); setSelectedTab(t as Tab); }}>
                         {t === 'openai' ? 'ChatGPT' : t.charAt(0).toUpperCase() + t.slice(1)}
                       </button>
                     ))}
