@@ -211,10 +211,16 @@ function App() {
               
               {msg.role === 'ASSISTANT' && (session.mode === 'EXPERT' || session.mode === 'REGULAR') ? (
                 <div className="answer-box" style={{ maxWidth: '100%' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280' }}>
-                    {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
-                    {msg.questionType && <div className="question-type">🏷️ {msg.questionType.replace(/[-_]/g, ' ').toUpperCase()}</div>}
-                  </div>
+                  {(() => {
+                    const providerMsg = session.messages.find(m => m.provider?.toLowerCase() === selectedTab.toLowerCase() && m.role === 'ASSISTANT');
+                    const displayType = providerMsg?.questionType || msg.questionType;
+                    return (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280' }}>
+                        {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
+                        {displayType && <div className="question-type">🏷️ {displayType.replace(/[-_]/g, ' ').toUpperCase()}</div>}
+                      </div>
+                    );
+                  })()}
                   <div className="tabs">
                     {['gemini', 'openai', 'claude'].map(t => (
                       <button key={t} className={`tab ${selectedTab === t ? 'active' : ''}`} onClick={() => setSelectedTab(t as Tab)}>
