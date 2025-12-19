@@ -115,6 +115,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleCaptureSnip(message.coords, sendResponse);
     return true;
   }
+
+  if (message.type === 'SOLVE_TEXT') {
+    console.log('[BACKGROUND] ✅ Matched SOLVE_TEXT handler');
+    console.log('[BACKGROUND] 📝 Text to solve:', message.text.substring(0, 100) + '...');
+    handleSolveText(message.text, message.sourceUrl);
+    sendResponse({ success: true });
+    return true;
+  }
 });
 
 async function handleCaptureScreen(sendResponse: (response: any) => void) {
@@ -319,3 +327,42 @@ chrome.storage.sync.get(['fratgpt_token'], (result) => {
 
 console.log('[BACKGROUND] 🚀 Ready to receive messages!');
 console.log('='.repeat(80));
+
+// Handle text solve requests
+async function handleSolveText(text: string, sourceUrl?: string) {
+  try {
+    console.log('[BACKGROUND] 📝 Processing text solve request...');
+    console.log('[BACKGROUND] 📝 Text length:', text.length);
+    console.log('[BACKGROUND] 🔗 Source URL:', sourceUrl);
+
+    // Open sidepanel
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab.id) {
+      console.error('[BACKGROUND] ❌ No active tab');
+      return;
+    }
+
+    console.log('[BACKGROUND] 🔓 Opening sidepanel...');
+    await chrome.sidePanel.open({ tabId: tab.id });
+
+    // Wait a moment for sidepanel to open and initialize
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    // Send message to sidepanel with the text
+    console.log('[BACKGROUND] 📤 Sending SOLVE_TEXT_REQUEST to sidepanel...');
+    chrome.runtime.sendMessage({
+      type: 'SOLVE_TEXT_REQUEST',
+      text: text,
+      sourceUrl: sourceUrl
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('[BACKGROUND] ❌ Error sending to sidepanel:', chrome.runtime.lastError);
+      } else {
+        console.log('[BACKGROUND] ✅ Sidepanel received text solve request:', response);
+      }
+    });
+
+  } catch (error: any) {
+    console.error('[BACKGROUND] ❌ Text solve failed:', error);
+  }
+}

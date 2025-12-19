@@ -70,8 +70,16 @@ function App() {
   }, [token]);
 
   useEffect(() => {
-    const messageListener = (message: any) => {
-      if (message.type === 'SNIP_COMPLETE') handleSnipComplete(message.coords);
+    const messageListener = (message: any, sender: any, sendResponse: any) => {
+      if (message.type === 'SNIP_COMPLETE') {
+        handleSnipComplete(message.coords);
+      }
+      if (message.type === 'SOLVE_TEXT_REQUEST') {
+        console.log('[SIDEPANEL] 📝 Received SOLVE_TEXT_REQUEST:', message.text.substring(0, 50) + '...');
+        handleTextSolve(message.text, message.sourceUrl);
+        sendResponse({ success: true });
+        return true;
+      }
     };
     chrome.runtime.onMessage.addListener(messageListener);
     return () => chrome.runtime.onMessage.removeListener(messageListener);
@@ -130,6 +138,35 @@ function App() {
       setInput('');
       await sendMessage(input || 'Solve this', response.imageData, 'SNIP', tab?.url);
     } catch (e: any) { alert(e.message); setOptimisticMessages([]); }
+  };
+
+  const handleTextSolve = async (text: string, sourceUrl?: string) => {
+    try {
+      console.log('[SIDEPANEL] 📝 Starting text solve...');
+      console.log('[SIDEPANEL] 📝 Text:', text.substring(0, 100) + '...');
+
+      // Create optimistic user message
+      const userMessage: Message = {
+        id: `temp-${Date.now()}`,
+        role: 'USER',
+        content: text
+      };
+
+      // Show optimistic UI
+      setOptimisticMessages([
+        userMessage,
+        { id: `think-${Date.now()}`, role: 'ASSISTANT', content: 'Thinking...' }
+      ]);
+
+      // Send to backend (no image data for text solves)
+      await sendMessage(text, undefined, undefined, sourceUrl);
+
+      console.log('[SIDEPANEL] ✅ Text solve completed');
+    } catch (e: any) {
+      console.error('[SIDEPANEL] ❌ Text solve failed:', e);
+      alert(e.message);
+      setOptimisticMessages([]);
+    }
   };
 
   const logInteraction = async (type: string, metadata: any) => {

@@ -285,8 +285,209 @@ function cancelSnipMode() {
   console.log('[CONTENT] ✅ Snip mode fully canceled');
 }
 
+// =============================================================================
+// TEXT HIGHLIGHT TO SOLVE FEATURE
+// =============================================================================
+
+let textSolvePopup: HTMLDivElement | null = null;
+let hidePopupTimeout: NodeJS.Timeout | null = null;
+
+// Create the "Solve" popup element
+function createTextSolvePopup(): HTMLDivElement {
+  const popup = document.createElement('div');
+  popup.id = 'fratgpt-text-solve-popup';
+  popup.style.cssText = `
+    position: absolute;
+    background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 2147483646;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(249, 115, 22, 0.3);
+    display: none;
+    user-select: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+    white-space: nowrap;
+  `;
+  popup.innerHTML = '🎓 Solve with FratGPT';
+
+  // Hover effect
+  popup.addEventListener('mouseenter', () => {
+    popup.style.transform = 'translateY(-2px)';
+    popup.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(249, 115, 22, 0.5)';
+  });
+
+  popup.addEventListener('mouseleave', () => {
+    popup.style.transform = 'translateY(0)';
+    popup.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(249, 115, 22, 0.3)';
+  });
+
+  // Click handler
+  popup.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim();
+
+    if (!selectedText) {
+      console.log('[CONTENT] No text selected');
+      hideTextSolvePopup();
+      return;
+    }
+
+    console.log('[CONTENT] ✅ Solve button clicked, selected text:', selectedText.substring(0, 50) + '...');
+
+    // Hide popup immediately
+    hideTextSolvePopup();
+
+    // Clear the text selection
+    selection?.removeAllRanges();
+
+    // Send message to background to initiate solve
+    chrome.runtime.sendMessage({
+      type: 'SOLVE_TEXT',
+      text: selectedText,
+      sourceUrl: window.location.href
+    }, (response) => {
+      console.log('[CONTENT] 📬 Response from background:', response);
+    });
+  });
+
+  document.body.appendChild(popup);
+  return popup;
+}
+
+// Show popup at selection position
+function showTextSolvePopup() {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || !selection.rangeCount) {
+    hideTextSolvePopup();
+    return;
+  }
+
+  const selectedText = selection.toString().trim();
+
+  // Ignore very short selections (likely accidental)
+  if (selectedText.length < 3) {
+    hideTextSolvePopup();
+    return;
+  }
+
+  // Don't show popup if we're in snip mode
+  if (isSnipping) {
+    return;
+  }
+
+  console.log('[CONTENT] 📝 Text selected, showing solve popup...');
+
+  // Create popup if it doesn't exist
+  if (!textSolvePopup) {
+    textSolvePopup = createTextSolvePopup();
+  }
+
+  // Get selection bounding rectangle
+  const range = selection.getRangeAt(0);
+  const rect = range.getBoundingClientRect();
+
+  // Calculate popup position (centered below selection)
+  const popupWidth = 180; // Approximate width
+  const popupHeight = 36; // Approximate height
+  const spacing = 8; // Space between selection and popup
+
+  let left = rect.left + (rect.width / 2) - (popupWidth / 2) + window.scrollX;
+  let top = rect.bottom + spacing + window.scrollY;
+
+  // Ensure popup stays within viewport bounds
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  // Adjust horizontal position if too far left or right
+  if (left < 10) left = 10;
+  if (left + popupWidth > viewportWidth - 10) {
+    left = viewportWidth - popupWidth - 10;
+  }
+
+  // If popup would be below viewport, show above selection instead
+  if (rect.bottom + spacing + popupHeight > viewportHeight + window.scrollY) {
+    top = rect.top - popupHeight - spacing + window.scrollY;
+  }
+
+  textSolvePopup.style.left = `${left}px`;
+  textSolvePopup.style.top = `${top}px`;
+  textSolvePopup.style.display = 'block';
+
+  // Clear any existing hide timeout
+  if (hidePopupTimeout) {
+    clearTimeout(hidePopupTimeout);
+    hidePopupTimeout = null;
+  }
+}
+
+// Hide popup
+function hideTextSolvePopup() {
+  if (textSolvePopup) {
+    textSolvePopup.style.display = 'none';
+  }
+
+  if (hidePopupTimeout) {
+    clearTimeout(hidePopupTimeout);
+    hidePopupTimeout = null;
+  }
+}
+
+// Handle text selection changes
+function handleSelectionChange() {
+  // Clear existing timeout
+  if (hidePopupTimeout) {
+    clearTimeout(hidePopupTimeout);
+    hidePopupTimeout = null;
+  }
+
+  // Debounce: wait 200ms after selection stops changing
+  hidePopupTimeout = setTimeout(() => {
+    showTextSolvePopup();
+  }, 200);
+}
+
+// Handle mouseup (selection completed)
+function handleMouseUpForText(e: MouseEvent) {
+  // Don't interfere with snip mode
+  if (isSnipping) return;
+
+  // Small delay to ensure selection is finalized
+  setTimeout(() => {
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) {
+      showTextSolvePopup();
+    }
+  }, 50);
+}
+
+// Hide popup when clicking outside
+function handleDocumentClick(e: MouseEvent) {
+  if (textSolvePopup && e.target !== textSolvePopup && !textSolvePopup.contains(e.target as Node)) {
+    const selection = window.getSelection();
+    if (selection && selection.isCollapsed) {
+      hideTextSolvePopup();
+    }
+  }
+}
+
+// Initialize text selection listeners
+console.log('[CONTENT] 🎯 Initializing text highlight-to-solve feature...');
+document.addEventListener('selectionchange', handleSelectionChange);
+document.addEventListener('mouseup', handleMouseUpForText);
+document.addEventListener('click', handleDocumentClick);
+console.log('[CONTENT] ✅ Text highlight listeners registered');
+
 console.log('='.repeat(80));
 console.log('[CONTENT] 🎉 FratGPT content script fully initialized!');
 console.log('[CONTENT] 📋 Available commands: START_SNIP, CANCEL_SNIP');
 console.log('[CONTENT] 🔍 Ready to receive messages from sidepanel');
+console.log('[CONTENT] 📝 Text highlight-to-solve: ACTIVE');
 console.log('='.repeat(80));
