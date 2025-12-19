@@ -40,6 +40,7 @@ function App() {
   const [selectedTab, setSelectedTab] = useState<Tab>('gemini');
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
   const [responseTime, setResponseTime] = useState<number | null>(null);
+  const [thinkingText, setThinkingText] = useState<string>('');
 
   const chatRef = useRef<HTMLDivElement>(null);
   const requestStartTime = useRef<number | null>(null);
@@ -87,7 +88,7 @@ function App() {
 
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
-  }, [session?.messages, optimisticMessages]);
+  }, [session?.messages, optimisticMessages, thinkingText]);
 
   const handleScreen = async () => {
     try {
@@ -103,7 +104,7 @@ function App() {
         id: `temp-${Date.now()}`, role: 'USER', content: input || 'Solve this',
         attachments: [{ imageData: response.imageData, source: 'SCREEN' }]
       };
-      setOptimisticMessages([userMessage, { id: `think-${Date.now()}`, role: 'ASSISTANT', content: 'Thinking...' }]);
+      setOptimisticMessages([userMessage]);
       setInput('');
       await sendMessage(input || 'Solve this', response.imageData, 'SCREEN', currentUrl);
     } catch (e: any) { alert(e.message); setOptimisticMessages([]); }
@@ -134,7 +135,7 @@ function App() {
         id: `temp-${Date.now()}`, role: 'USER', content: input || 'Solve this',
         attachments: [{ imageData: response.imageData, source: 'SNIP' }]
       };
-      setOptimisticMessages([userMessage, { id: `think-${Date.now()}`, role: 'ASSISTANT', content: 'Thinking...' }]);
+      setOptimisticMessages([userMessage]);
       setInput('');
       await sendMessage(input || 'Solve this', response.imageData, 'SNIP', tab?.url);
     } catch (e: any) { alert(e.message); setOptimisticMessages([]); }
@@ -143,25 +144,9 @@ function App() {
   const handleTextSolve = async (text: string, sourceUrl?: string) => {
     try {
       console.log('[SIDEPANEL] 📝 Starting text solve...');
-      console.log('[SIDEPANEL] 📝 Text:', text.substring(0, 100) + '...');
-
-      // Create optimistic user message
-      const userMessage: Message = {
-        id: `temp-${Date.now()}`,
-        role: 'USER',
-        content: text
-      };
-
-      // Show optimistic UI
-      setOptimisticMessages([
-        userMessage,
-        { id: `think-${Date.now()}`, role: 'ASSISTANT', content: 'Thinking...' }
-      ]);
-
-      // Send to backend (no image data for text solves)
+      const userMessage: Message = { id: `temp-${Date.now()}`, role: 'USER', content: text };
+      setOptimisticMessages([userMessage]);
       await sendMessage(text, undefined, undefined, sourceUrl);
-
-      console.log('[SIDEPANEL] ✅ Text solve completed');
     } catch (e: any) {
       console.error('[SIDEPANEL] ❌ Text solve failed:', e);
       alert(e.message);
@@ -181,9 +166,13 @@ function App() {
   const sendMessage = async (text: string, imageData?: string, captureSource?: string, sourceUrl?: string) => {
     setSending(true);
     setError('');
+    setThinkingText(''); // Reset thinking text
+    
     try {
       const isNewCapture = !!imageData;
-      const url = isNewCapture ? `${API_URL}/chat/start` : (session ? `${API_URL}/chat/${session.id}/message` : `${API_URL}/chat/start`);
+      // Use streaming endpoint for new captures/solves
+      const useStreaming = isNewCapture || !session; 
+      const url = useStreaming ? `${API_URL}/chat/start-stream` : `${API_URL}/chat/${session?.id}/message`;
       
       const body: any = { message: text };
       if (!session || isNewCapture) body.mode = mode;
@@ -191,6 +180,7 @@ function App() {
       if (sourceUrl) body.sourceUrl = sourceUrl;
 
       requestStartTime.current = Date.now();
+
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -202,26 +192,70 @@ function App() {
         throw new Error(err.error || 'Request failed');
       }
 
-      const data = await res.json();
-      console.log('🔍 [Extension DEBUG] Raw API Response:', JSON.stringify(data, null, 2));
-      if (data.messages) {
-        console.log('🔍 [Extension DEBUG] Messages check:', data.messages.map((m: any) => ({
-          role: m.role,
-          provider: m.provider,
-          questionType: m.questionType,
-          shortAnswer: m.shortAnswer?.substring(0, 20)
-        })));
+      // Handle Streaming Response
+      if (useStreaming && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || ''; // Keep incomplete event
+
+          for (const line of lines) {
+            const eventMatch = line.match(/^event: (.*)$/m);
+            const dataMatch = line.match(/^data: ([\s\S]*)$/m); // Match rest of line including newlines if any
+
+            if (eventMatch && dataMatch) {
+              const event = eventMatch[1].trim();
+              const dataStr = dataMatch[1].trim();
+
+              if (event === 'thought') {
+                try {
+                  const chunk = JSON.parse(dataStr);
+                  setThinkingText(prev => prev + chunk);
+                } catch (e) { console.error('Parse thought error', e); }
+              } else if (event === 'result') {
+                try {
+                  const sessionData = JSON.parse(dataStr);
+                  if (requestStartTime.current) {
+                    setResponseTime((Date.now() - requestStartTime.current) / 1000);
+                    requestStartTime.current = null;
+                  }
+                  setOptimisticMessages([]);
+                  setSession(sessionData);
+                  setThinkingText(''); // Clear thinking text
+                } catch (e) { console.error('Parse result error', e); }
+              } else if (event === 'error') {
+                 const errData = JSON.parse(dataStr);
+                 throw new Error(errData.error || 'Stream error');
+              }
+            }
+          }
+        }
+      } else {
+        // Handle Standard Response (Fallback for /message calls)
+        const data = await res.json();
+        if (requestStartTime.current) {
+          setResponseTime((Date.now() - requestStartTime.current) / 1000);
+          requestStartTime.current = null;
+        }
+        setOptimisticMessages([]);
+        setSession(data);
       }
-      
-      if (requestStartTime.current) {
-        setResponseTime((Date.now() - requestStartTime.current) / 1000);
-        requestStartTime.current = null;
-      }
-      setOptimisticMessages([]);
-      setSession(data);
+
       setInput('');
-    } catch (err: any) { setError(err.message); setOptimisticMessages([]); }
-    finally { setSending(false); }
+    } catch (err: any) { 
+      setError(err.message); 
+      setOptimisticMessages([]); 
+      setThinkingText('');
+    } finally { 
+      setSending(false); 
+    }
   };
 
   const handleSend = () => sendMessage(input);
@@ -248,8 +282,9 @@ function App() {
 
       <div className="chat-container" ref={chatRef}>
         {error && <div className="error">{error}</div>}
-        {!session && optimisticMessages.length === 0 && <div className="empty-state"><h3>Welcome!</h3><p>Select a mode to start.</p></div>}
+        {!session && optimisticMessages.length === 0 && !sending && <div className="empty-state"><h3>Welcome!</h3><p>Select a mode to start.</p></div>}
 
+        {/* Existing Messages */}
         {session?.messages.map((msg, idx) => {
           if ((session.mode === 'EXPERT' || session.mode === 'REGULAR') && msg.role === 'ASSISTANT') {
             const firstAssistantMsg = session.messages.find(m => m.role === 'ASSISTANT');
@@ -296,9 +331,7 @@ function App() {
                           <div className="mc-options" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
                             {providerMsg.structuredAnswer.content.options.map((opt: string, i: number) => {
                               const choice = providerMsg.structuredAnswer.content.choice;
-                              // Check if this option starts with the choice letter (e.g. "A." or "A)") or matches the text
                               const isSelected = opt.startsWith(choice + '.') || opt.startsWith(choice + ')') || opt === choice;
-                              
                               return (
                                 <div key={i} style={{ 
                                   padding: '8px 12px', 
@@ -345,7 +378,6 @@ function App() {
                       {msg.structuredAnswer.content.options.map((opt: string, i: number) => {
                         const choice = msg.structuredAnswer.content.choice;
                         const isSelected = opt.startsWith(choice + '.') || opt.startsWith(choice + ')') || opt === choice;
-                        
                         return (
                           <div key={i} style={{ 
                             padding: '8px 12px', 
@@ -365,7 +397,6 @@ function App() {
                   ) : (
                     <div className="short-answer">{msg.shortAnswer}</div>
                   )}
-                  
                   {msg.structuredAnswer?.explanation && (
                     <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
                       <details style={{ cursor: 'pointer' }}>
@@ -384,12 +415,45 @@ function App() {
           );
         })}
 
+        {/* Optimistic / Thinking UI */}
         {optimisticMessages.map((msg, idx) => (
           <div key={msg.id} className={`message ${msg.role.toLowerCase()}`}>
             {msg.attachments?.map((att, i) => <img key={i} src={att.imageData} className="message-image" alt="attachment" />)}
             <div className="message-bubble">{msg.content}</div>
           </div>
         ))}
+
+        {sending && (
+          <div className="message assistant">
+            <div className="message-bubble thinking-bubble" style={{ 
+              fontStyle: 'italic', 
+              color: '#6b7280', 
+              background: '#f9fafb', 
+              border: '1px solid #e5e7eb',
+              boxShadow: 'none'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: thinkingText ? '8px' : '0' }}>
+                <div className="loading-spinner" style={{ width: '14px', height: '14px', border: '2px solid #e5e7eb', borderTop: '2px solid #3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                <span style={{ fontSize: '12px', fontWeight: 500 }}>Thinking Process...</span>
+              </div>
+              {thinkingText && (
+                <div style={{ 
+                  whiteSpace: 'pre-wrap', 
+                  fontSize: '13px', 
+                  lineHeight: '1.6',
+                  color: '#4b5563',
+                  maxHeight: '300px',
+                  overflowY: 'auto'
+                }}>
+                  {thinkingText
+                    .replace(/<thinking>/g, '')
+                    .replace(/<\/thinking>[\s\S]*/g, '')
+                    .trim()}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="input-container">
@@ -398,6 +462,9 @@ function App() {
           <button className="send-btn" onClick={handleSend} disabled={sending || !input.trim()}>Send</button>
         </div>
       </div>
+      <style>{`
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }
