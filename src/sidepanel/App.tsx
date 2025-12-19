@@ -424,34 +424,26 @@ function App() {
         ))}
 
         {sending && (
-          <div className="message assistant">
-            <div className="message-bubble thinking-bubble" style={{ 
-              fontStyle: 'italic', 
-              color: '#6b7280', 
-              background: '#f9fafb', 
-              border: '1px solid #e5e7eb',
-              boxShadow: 'none'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: thinkingText ? '8px' : '0' }}>
+          <div className="thinking-container" style={{ 
+            padding: '12px 16px', 
+            color: '#6b7280', 
+            fontStyle: 'italic', 
+            fontSize: '13px', 
+            lineHeight: '1.6',
+            animation: 'fadeIn 0.3s ease-in-out'
+          }}>
+            {thinkingText ? (
+              thinkingText
+                .replace(/<thinking>/g, '')
+                .replace(/<\/thinking>[\s\S]*/g, '')
+                .replace(/\n/g, ' ')
+                .trim()
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div className="loading-spinner" style={{ width: '14px', height: '14px', border: '2px solid #e5e7eb', borderTop: '2px solid #3b82f6', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-                <span style={{ fontSize: '12px', fontWeight: 500 }}>Thinking Process...</span>
+                <span style={{ fontSize: '12px' }}>Thinking...</span>
               </div>
-              {thinkingText && (
-                <div style={{ 
-                  whiteSpace: 'pre-wrap', 
-                  fontSize: '13px', 
-                  lineHeight: '1.6',
-                  color: '#4b5563',
-                  maxHeight: '300px',
-                  overflowY: 'auto'
-                }}>
-                  {thinkingText
-                    .replace(/<thinking>/g, '')
-                    .replace(/<\/thinking>[\s\S]*/g, '')
-                    .trim()}
-                </div>
-              )}
-            </div>
+            )}
           </div>
         )}
       </div>
