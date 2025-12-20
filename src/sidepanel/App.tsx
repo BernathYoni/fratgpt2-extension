@@ -40,10 +40,32 @@ function App() {
   const [selectedTab, setSelectedTab] = useState<Tab>('gemini');
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
   const [responseTime, setResponseTime] = useState<number | null>(null);
-  const [thinkingText, setThinkingText] = useState<string>('');
+  
+  // Streaming / Typewriter State
+  const [displayedThinking, setDisplayedThinking] = useState<string>('');
+  const thinkingBuffer = useRef<string>('');
 
   const chatRef = useRef<HTMLDivElement>(null);
   const requestStartTime = useRef<number | null>(null);
+
+  // Typewriter Effect Loop
+  useEffect(() => {
+    if (!sending) return;
+    
+    const interval = setInterval(() => {
+      if (thinkingBuffer.current.length > 0) {
+        // Taking 3-5 chars per 30ms creates a smooth, fast-but-readable speed (~100-150 words/min)
+        // Adjust chunk size based on buffer size to "catch up" if it gets too full?
+        // Simple constant speed is usually best for UX consistency.
+        const chunkSize = 3;
+        const nextChars = thinkingBuffer.current.slice(0, chunkSize);
+        thinkingBuffer.current = thinkingBuffer.current.slice(chunkSize);
+        setDisplayedThinking(prev => prev + nextChars);
+      }
+    }, 30);
+
+    return () => clearInterval(interval);
+  }, [sending]);
 
   useEffect(() => {
     chrome.storage.sync.get(['fratgpt_token'], (result) => {
@@ -88,7 +110,7 @@ function App() {
 
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
-  }, [session?.messages, optimisticMessages, thinkingText]);
+  }, [session?.messages, optimisticMessages, displayedThinking]);
 
   const handleScreen = async () => {
     try {
@@ -166,7 +188,11 @@ function App() {
   const sendMessage = async (text: string, imageData?: string, captureSource?: string, sourceUrl?: string) => {
     setSending(true);
     setError('');
-    setThinkingText(''); // Reset thinking text
+    
+    // Reset Stream State
+    setDisplayedThinking('');
+    thinkingBuffer.current = '';
+    
     console.log('[SIDEPANEL] sendMessage called. Initializing states.');
     
     try {
@@ -180,7 +206,7 @@ function App() {
       if (sourceUrl) body.sourceUrl = sourceUrl;
 
       requestStartTime.current = Date.now();
-      console.log(`[SIDEPANEL] Fetching ${url} with body:`, body);
+      console.log(`[SIDEPANEL] Fetching ${url}`);
 
       const res = await fetch(url, {
         method: 'POST',
@@ -205,39 +231,26 @@ function App() {
 
         while (true) {
           const { done, value } = await reader.read();
-          console.log(`[SIDEPANEL] Reader read: done=${done}, value=${value ? decoder.decode(value).length : 0} bytes`);
-          if (done) {
-            console.log('[SIDEPANEL] Stream finished (done is true).');
-            break;
-          }
+          if (done) break;
           
-          const decodedChunk = decoder.decode(value, { stream: true });
-          buffer += decodedChunk;
-          console.log(`[SIDEPANEL] Buffer current length: ${buffer.length}. Decoded chunk: "${decodedChunk.substring(0, 50)}..."`);
-
+          buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n\n');
           buffer = lines.pop() || ''; 
-          console.log(`[SIDEPANEL] Split into ${lines.length} events. Remaining buffer: "${buffer.substring(0, 50)}..."`);
 
           for (const line of lines) {
-            console.log(`[SIDEPANEL] Processing event line: "${line.substring(0, 50)}..."`);
             const eventMatch = line.match(/^event: (.*)$/m);
             const dataMatch = line.match(/^data: ([\s\S]*)$/m);
 
             if (eventMatch && dataMatch) {
               const event = eventMatch[1].trim();
               const dataStr = dataMatch[1].trim();
-              console.log(`[SIDEPANEL] Matched event: ${event}, data length: ${dataStr.length}`);
 
               if (event === 'thought') {
                 try {
-                  const chunk = JSON.parse(dataStr); // Backend sends JSON.stringified chunk
-                  setThinkingText(prev => {
-                    const newText = prev + chunk;
-                    console.log(`[SIDEPANEL] Thought: ${newText.length} chars. Last 50: "${newText.slice(-50)}"`);
-                    return newText;
-                  });
-                } catch (e) { console.error('[SIDEPANEL] Parse thought error', e, 'Data:', dataStr); }
+                  const chunk = JSON.parse(dataStr);
+                  // Append to buffer for typewriter effect
+                  thinkingBuffer.current += chunk;
+                } catch (e) { console.error('[SIDEPANEL] Parse thought error', e); }
               } else if (event === 'result') {
                 try {
                   const sessionData = JSON.parse(dataStr);
@@ -248,28 +261,20 @@ function App() {
                   }
                   setOptimisticMessages([]);
                   setSession(sessionData);
-                  // setThinkingText(''); // REMOVE THIS LINE: Let sending=false handle hiding it
-                  console.log('[SIDEPANEL] Session updated, thinkingText reset.');
-                } catch (e) { console.error('[SIDEPANEL] Parse result error', e, 'Data:', dataStr); }
+                  // Do not clear displayedThinking; let sending=false hide it
+                } catch (e) { console.error('[SIDEPANEL] Parse result error', e); }
               } else if (event === 'error') {
                  const errData = JSON.parse(dataStr);
-                 console.error('[SIDEPANEL] Received ERROR event:', errData);
                  throw new Error(errData.error || 'Stream error');
               } else if (event === 'done') {
-                console.log('[SIDEPANEL] Received DONE event. Breaking stream loop.');
-                break; // Exit the while loop
+                break; 
               }
-            } else {
-              console.warn(`[SIDEPANEL] Malformed event line: "${line}"`);
             }
           }
         }
-        console.log('[SIDEPANEL] Exited while(true) stream loop.');
       } else {
-        // Handle Standard Response (Fallback for /message calls)
-        console.log('[SIDEPANEL] Entering standard response handler...');
+        // Handle Standard Response
         const data = await res.json();
-        console.log('🔍 [Extension DEBUG] Raw API Response (Standard):', JSON.stringify(data, null, 2));
         if (requestStartTime.current) {
           setResponseTime((Date.now() - requestStartTime.current) / 1000);
           requestStartTime.current = null;
@@ -279,15 +284,12 @@ function App() {
       }
 
       setInput('');
-      console.log('[SIDEPANEL] sendMessage: Input cleared.');
     } catch (err: any) { 
       setError(err.message); 
       setOptimisticMessages([]); 
-      setThinkingText('');
-      console.error('[SIDEPANEL] sendMessage: Caught error:', err);
+      setDisplayedThinking('');
     } finally { 
       setSending(false); 
-      console.log('[SIDEPANEL] sendMessage: Finally block, sending set to false.');
     }
   };
 
@@ -465,8 +467,8 @@ function App() {
             lineHeight: '1.6',
             animation: 'fadeIn 0.3s ease-in-out'
           }}>
-            {thinkingText ? (
-              thinkingText
+            {displayedThinking ? (
+              displayedThinking
                 .replace(/<thinking>/g, '')
                 .replace(/<\/thinking>[\s\S]*/g, '')
                 .replace(/\n/g, ' ')
