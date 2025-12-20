@@ -167,10 +167,10 @@ function App() {
     setSending(true);
     setError('');
     setThinkingText(''); // Reset thinking text
+    console.log('[SIDEPANEL] sendMessage called. Initializing states.');
     
     try {
       const isNewCapture = !!imageData;
-      // Use streaming endpoint for new captures/solves
       const useStreaming = isNewCapture || !session; 
       const url = useStreaming ? `${API_URL}/chat/start-stream` : `${API_URL}/chat/${session?.id}/message`;
       
@@ -180,6 +180,7 @@ function App() {
       if (sourceUrl) body.sourceUrl = sourceUrl;
 
       requestStartTime.current = Date.now();
+      console.log(`[SIDEPANEL] Fetching ${url} with body:`, body);
 
       const res = await fetch(url, {
         method: 'POST',
@@ -187,59 +188,88 @@ function App() {
         body: JSON.stringify(body),
       });
 
+      console.log('[SIDEPANEL] Fetch response status:', res.status);
+
       if (!res.ok) {
         const err = await res.json();
+        console.error('[SIDEPANEL] API Error Response:', err);
         throw new Error(err.error || 'Request failed');
       }
 
       // Handle Streaming Response
       if (useStreaming && res.body) {
+        console.log('[SIDEPANEL] Entering streaming response handler...');
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          console.log(`[SIDEPANEL] Reader read: done=${done}, value=${value ? decoder.decode(value).length : 0} bytes`);
+          if (done) {
+            console.log('[SIDEPANEL] Stream finished (done is true).');
+            break;
+          }
           
-          buffer += decoder.decode(value, { stream: true });
+          const decodedChunk = decoder.decode(value, { stream: true });
+          buffer += decodedChunk;
+          console.log(`[SIDEPANEL] Buffer current length: ${buffer.length}. Decoded chunk: "${decodedChunk.substring(0, 50)}..."`);
+
           const lines = buffer.split('\n\n');
-          buffer = lines.pop() || ''; // Keep incomplete event
+          buffer = lines.pop() || ''; 
+          console.log(`[SIDEPANEL] Split into ${lines.length} events. Remaining buffer: "${buffer.substring(0, 50)}..."`);
 
           for (const line of lines) {
+            console.log(`[SIDEPANEL] Processing event line: "${line.substring(0, 50)}..."`);
             const eventMatch = line.match(/^event: (.*)$/m);
-            const dataMatch = line.match(/^data: ([\s\S]*)$/m); // Match rest of line including newlines if any
+            const dataMatch = line.match(/^data: ([\s\S]*)$/m);
 
             if (eventMatch && dataMatch) {
               const event = eventMatch[1].trim();
               const dataStr = dataMatch[1].trim();
+              console.log(`[SIDEPANEL] Matched event: ${event}, data length: ${dataStr.length}`);
 
               if (event === 'thought') {
                 try {
-                  const chunk = JSON.parse(dataStr);
-                  setThinkingText(prev => prev + chunk);
-                } catch (e) { console.error('Parse thought error', e); }
+                  const chunk = JSON.parse(dataStr); // Backend sends JSON.stringified chunk
+                  setThinkingText(prev => {
+                    const newText = prev + chunk;
+                    console.log(`[SIDEPANEL] Thought: ${newText.length} chars. Last 50: "${newText.slice(-50)}"`);
+                    return newText;
+                  });
+                } catch (e) { console.error('[SIDEPANEL] Parse thought error', e, 'Data:', dataStr); }
               } else if (event === 'result') {
                 try {
                   const sessionData = JSON.parse(dataStr);
+                  console.log('[SIDEPANEL] Received final RESULT event.');
                   if (requestStartTime.current) {
                     setResponseTime((Date.now() - requestStartTime.current) / 1000);
                     requestStartTime.current = null;
                   }
                   setOptimisticMessages([]);
                   setSession(sessionData);
-                  setThinkingText(''); // Clear thinking text
-                } catch (e) { console.error('Parse result error', e); }
+                  // setThinkingText(''); // REMOVE THIS LINE: Let sending=false handle hiding it
+                  console.log('[SIDEPANEL] Session updated, thinkingText reset.');
+                } catch (e) { console.error('[SIDEPANEL] Parse result error', e, 'Data:', dataStr); }
               } else if (event === 'error') {
                  const errData = JSON.parse(dataStr);
+                 console.error('[SIDEPANEL] Received ERROR event:', errData);
                  throw new Error(errData.error || 'Stream error');
+              } else if (event === 'done') {
+                console.log('[SIDEPANEL] Received DONE event. Breaking stream loop.');
+                break; // Exit the while loop
               }
+            } else {
+              console.warn(`[SIDEPANEL] Malformed event line: "${line}"`);
             }
           }
         }
+        console.log('[SIDEPANEL] Exited while(true) stream loop.');
       } else {
         // Handle Standard Response (Fallback for /message calls)
+        console.log('[SIDEPANEL] Entering standard response handler...');
         const data = await res.json();
+        console.log('🔍 [Extension DEBUG] Raw API Response (Standard):', JSON.stringify(data, null, 2));
         if (requestStartTime.current) {
           setResponseTime((Date.now() - requestStartTime.current) / 1000);
           requestStartTime.current = null;
@@ -249,12 +279,15 @@ function App() {
       }
 
       setInput('');
+      console.log('[SIDEPANEL] sendMessage: Input cleared.');
     } catch (err: any) { 
       setError(err.message); 
       setOptimisticMessages([]); 
       setThinkingText('');
+      console.error('[SIDEPANEL] sendMessage: Caught error:', err);
     } finally { 
       setSending(false); 
+      console.log('[SIDEPANEL] sendMessage: Finally block, sending set to false.');
     }
   };
 
