@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import 'katex/dist/katex.min.css';
+import Latex from 'react-latex-next';
 
 const API_URL = 'https://api.fratgpt.co';
 
@@ -384,7 +386,7 @@ function App() {
                             })}
                           </div>
                         ) : (
-                          <div className="short-answer">{providerMsg.shortAnswer}</div>
+                          <div className="short-answer"><Latex>{providerMsg.shortAnswer}</Latex></div>
                         )}
                         
                         {providerMsg.structuredAnswer?.explanation && (
@@ -392,7 +394,7 @@ function App() {
                             <details style={{ cursor: 'pointer' }}>
                               <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Explanation</summary>
                               <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
-                                {providerMsg.structuredAnswer.explanation}
+                                <Latex>{providerMsg.structuredAnswer.explanation}</Latex>
                               </div>
                             </details>
                           </div>
@@ -430,14 +432,14 @@ function App() {
                       })}
                     </div>
                   ) : (
-                    <div className="short-answer">{msg.shortAnswer}</div>
+                    <div className="short-answer"><Latex>{msg.shortAnswer}</Latex></div>
                   )}
                   {msg.structuredAnswer?.explanation && (
                     <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
                       <details style={{ cursor: 'pointer' }}>
                         <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Explanation</summary>
                         <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
-                          {msg.structuredAnswer.explanation}
+                          <Latex>{msg.structuredAnswer.explanation}</Latex>
                         </div>
                       </details>
                     </div>
