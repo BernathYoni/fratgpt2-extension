@@ -323,130 +323,91 @@ function App() {
               {msg.attachments?.map((att, i) => <img key={i} src={att.imageData} className="message-image" alt="attachment" />)}
               
               {msg.role === 'ASSISTANT' && (session.mode === 'EXPERT' || session.mode === 'REGULAR') ? (
-                <div className="answer-box" style={{ maxWidth: '100%' }}>
+                <div style={{ width: '100%', marginTop: '8px' }}>
                   {(() => {
                     const providerMsg = session.messages.find(m => m.provider?.toLowerCase() === selectedTab.toLowerCase() && m.role === 'ASSISTANT');
                     const displayMsg = providerMsg || msg;
                     
-                    return (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280' }}>
-                        {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
-                      </div>
-                    );
-                  })()}
-                  <div className="tabs">
-                    {['gemini', 'openai', 'claude'].map(t => (
-                      <button key={t} className={`tab ${selectedTab === t ? 'active' : ''}`} onClick={() => { logInteraction('TAB_VIEW', { provider: t }); setSelectedTab(t as Tab); }}>
-                        {t === 'openai' ? 'ChatGPT' : t.charAt(0).toUpperCase() + t.slice(1)}
-                      </button>
-                    ))}
-                  </div>
-                  {(() => {
-                    const providerMsg = session.messages.find(m => m.provider?.toLowerCase() === selectedTab.toLowerCase() && m.role === 'ASSISTANT');
-                    const displayMsg = providerMsg || msg;
-                    
-                    if (!displayMsg) return <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>No response</div>;
-
-                    // CHECK FOR STEPS IN EITHER LOCATION
-                    const steps = displayMsg.steps || displayMsg.structuredAnswer?.steps;
-
                     return (
                       <>
-                        <div style={{ marginBottom: '16px' }}>
-                          <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
-                            Final Answer
-                          </div>
-                          <div className="short-answer" style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-                            {String(displayMsg.shortAnswer || '')}
-                          </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280' }}>
+                          {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
+                        </div>
+                        <div className="tabs mb-4">
+                          {['gemini', 'openai', 'claude'].map(t => (
+                            <button key={t} className={`tab ${selectedTab === t ? 'active' : ''}`} onClick={() => { logInteraction('TAB_VIEW', { provider: t }); setSelectedTab(t as Tab); }}>
+                              {t === 'openai' ? 'ChatGPT' : t.charAt(0).toUpperCase() + t.slice(1)}
+                            </button>
+                          ))}
                         </div>
                         
-                        {steps && steps.length > 0 && (
-                          <div style={{ marginTop: '20px' }}>
-                            <div style={{
-                              fontSize: '14px',
-                              fontWeight: 600,
-                              color: '#374151',
-                              marginBottom: '12px',
-                              paddingBottom: '8px',
-                              borderBottom: '1px solid #e5e7eb'
-                            }}>
-                              Explanation
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                              {steps.map((step: any, sIdx: number) => (
-                                 <div key={sIdx} style={{ position: 'relative', paddingLeft: '16px' }}>
-                                   {/* Step Number/Line */}
-                                   <div style={{ 
-                                     position: 'absolute', 
-                                     left: '0', 
-                                     top: '6px', 
-                                     bottom: sIdx === steps.length - 1 ? 'auto' : '-16px', 
-                                     width: '2px', 
-                                     background: sIdx === steps.length - 1 ? 'transparent' : '#e5e7eb' 
-                                   }}></div>
-                                   <div style={{ 
-                                     position: 'absolute', 
-                                     left: '-4px', 
-                                     top: '6px', 
-                                     width: '10px', 
-                                     height: '10px', 
-                                     borderRadius: '50%', 
-                                     background: '#3b82f6',
-                                     border: '2px solid white'
-                                   }}></div>
-
-                                   <div style={{ 
-                                      background: 'white', 
-                                      border: '1px solid #e5e7eb', 
-                                      borderRadius: '8px', 
-                                      padding: '12px',
-                                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                   }}>
-                                     <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '4px', color: '#1f2937' }}>
-                                       {step.title}
-                                     </div>
-                                     <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#4b5563' }}>
-                                       <Latex>{String(step.content || '')}</Latex>
-                                     </div>
-                                   </div>
-                                 </div>
-                              ))}
-                            </div>
+                        <div style={{ padding: '0 4px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
+                            Final Answer
                           </div>
-                        )}
-                        
-                        {/* Fallback Explanation for old format */}
-                        {(!steps || steps.length === 0) && displayMsg.structuredAnswer?.explanation && (
-                           <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
-                             <details style={{ cursor: 'pointer' }}>
-                               <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Detailed Explanation</summary>
-                               <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
-                                 <Latex>{String(displayMsg.structuredAnswer.explanation || '')}</Latex>
-                               </div>
-                             </details>
-                           </div>
-                        )}
+                          <div style={{ fontSize: '18px', fontWeight: 700, color: '#111827', marginBottom: '20px' }}>
+                            {String(displayMsg.shortAnswer || '')}
+                          </div>
+                          
+                          {(() => {
+                            const steps = displayMsg.steps || displayMsg.structuredAnswer?.steps;
+                            if (steps && steps.length > 0) {
+                              return (
+                                <div style={{ marginTop: '20px' }}>
+                                  <div style={{ 
+                                    fontSize: '13px', 
+                                    fontWeight: 700, 
+                                    color: '#374151', 
+                                    marginBottom: '12px',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.025em'
+                                  }}>
+                                    Explanation
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    {steps.map((step: any, sIdx: number) => (
+                                       <div key={sIdx}>
+                                         <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '4px', color: '#1f2937' }}>
+                                           {sIdx + 1}. {step.title}
+                                         </div>
+                                         <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#4b5563', paddingLeft: '18px' }}>
+                                           <Latex>{String(step.content || '')}</Latex>
+                                         </div>
+                                       </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            } else if (displayMsg.structuredAnswer?.explanation) {
+                              return (
+                                <div style={{ marginTop: '12px' }}>
+                                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', marginBottom: '4px' }}>Explanation</div>
+                                  <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#374151' }}>
+                                    <Latex>{String(displayMsg.structuredAnswer.explanation || '')}</Latex>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
                       </>
                     );
                   })()}
                 </div>
               ) : msg.role === 'ASSISTANT' ? (
-                <div className="answer-box">
+                <div style={{ width: '100%', marginTop: '8px', padding: '0 4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280' }}>
                     {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
                   </div>
                   
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
-                      Final Answer
-                    </div>
-                    <div className="short-answer" style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-                       {String(msg.shortAnswer || '')}
-                    </div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#f97316', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
+                    Final Answer
+                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#111827', marginBottom: '20px' }}>
+                     {String(msg.shortAnswer || '')}
                   </div>
 
-                  {/* Logic for default view steps */}
                   {(() => {
                      const steps = msg.steps || msg.structuredAnswer?.steps;
                      
@@ -454,51 +415,23 @@ function App() {
                        return (
                           <div style={{ marginTop: '20px' }}>
                             <div style={{ 
-                              fontSize: '14px', 
-                              fontWeight: 600, 
+                              fontSize: '13px', 
+                              fontWeight: 700, 
                               color: '#374151', 
                               marginBottom: '12px',
-                              paddingBottom: '8px',
-                              borderBottom: '1px solid #e5e7eb'
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.025em'
                             }}>
                               Explanation
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                               {steps.map((step: any, sIdx: number) => (
-                                 <div key={sIdx} style={{ position: 'relative', paddingLeft: '16px' }}>
-                                   {/* Step Number/Line */}
-                                   <div style={{ 
-                                     position: 'absolute', 
-                                     left: '0', 
-                                     top: '6px', 
-                                     bottom: sIdx === steps.length - 1 ? 'auto' : '-16px', 
-                                     width: '2px', 
-                                     background: sIdx === steps.length - 1 ? 'transparent' : '#e5e7eb' 
-                                   }}></div>
-                                   <div style={{ 
-                                     position: 'absolute', 
-                                     left: '-4px', 
-                                     top: '6px', 
-                                     width: '10px', 
-                                     height: '10px', 
-                                     borderRadius: '50%', 
-                                     background: '#3b82f6',
-                                     border: '2px solid white'
-                                   }}></div>
-
-                                   <div style={{ 
-                                      background: 'white', 
-                                      border: '1px solid #e5e7eb', 
-                                      borderRadius: '8px', 
-                                      padding: '12px',
-                                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                   }}>
-                                     <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '4px', color: '#1f2937' }}>
-                                       {step.title}
-                                     </div>
-                                     <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#4b5563' }}>
-                                       <Latex>{String(step.content || '')}</Latex>
-                                     </div>
+                                 <div key={sIdx}>
+                                   <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '4px', color: '#1f2937' }}>
+                                     {sIdx + 1}. {step.title}
+                                   </div>
+                                   <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#4b5563', paddingLeft: '18px' }}>
+                                     <Latex>{String(step.content || '')}</Latex>
                                    </div>
                                  </div>
                               ))}
@@ -507,13 +440,11 @@ function App() {
                        );
                      } else if (msg.structuredAnswer?.explanation) {
                        return (
-                          <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
-                            <details style={{ cursor: 'pointer' }}>
-                              <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Explanation</summary>
-                              <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
-                                <Latex>{String(msg.structuredAnswer.explanation || '')}</Latex>
-                              </div>
-                            </details>
+                          <div style={{ marginTop: '12px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', marginBottom: '4px' }}>Explanation</div>
+                            <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#374151' }}>
+                              <Latex>{String(msg.structuredAnswer.explanation || '')}</Latex>
+                            </div>
                           </div>
                        );
                      }
