@@ -357,7 +357,7 @@ function App() {
                             Final Answer
                           </div>
                           <div className="short-answer" style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-                            <Latex>{String(displayMsg.shortAnswer || '')}</Latex>
+                            {String(displayMsg.shortAnswer || '')}
                           </div>
                         </div>
                         
@@ -442,7 +442,7 @@ function App() {
                       Final Answer
                     </div>
                     <div className="short-answer" style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-                       <Latex>{String(msg.shortAnswer || '')}</Latex>
+                       {String(msg.shortAnswer || '')}
                     </div>
                   </div>
 
