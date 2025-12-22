@@ -15,11 +15,12 @@ interface Message {
   provider?: string;
   questionType?: string;
   structuredAnswer?: any;
+  steps?: Array<{ title: string; content: string }>; // NEW field
   attachments?: Array<{ imageData?: string; source: string }>;
   metadata?: { error?: string };
-  providers?: Array<{
+  providers?: Array<{ 
     provider: string;
-    response: { shortAnswer: string };
+    response: { shortAnswer: string; steps?: Array<{ title: string; content: string }> };
   }>;
 }
 
@@ -57,8 +58,6 @@ function App() {
     const interval = setInterval(() => {
       if (thinkingBuffer.current.length > 0) {
         // Taking 3-5 chars per 30ms creates a smooth, fast-but-readable speed (~100-150 words/min)
-        // Adjust chunk size based on buffer size to "catch up" if it gets too full?
-        // Simple constant speed is usually best for UX consistency.
         const chunkSize = 3;
         const nextChars = thinkingBuffer.current.slice(0, chunkSize);
         thinkingBuffer.current = thinkingBuffer.current.slice(chunkSize);
@@ -100,7 +99,6 @@ function App() {
         handleSnipComplete(message.coords);
       }
       if (message.type === 'SOLVE_TEXT_REQUEST') {
-        console.log('[SIDEPANEL] 📝 Received SOLVE_TEXT_REQUEST:', message.text.substring(0, 50) + '...');
         handleTextSolve(message.text, message.sourceUrl);
         sendResponse({ success: true });
         return true;
@@ -208,7 +206,6 @@ function App() {
       if (sourceUrl) body.sourceUrl = sourceUrl;
 
       requestStartTime.current = Date.now();
-      console.log(`[SIDEPANEL] Fetching ${url}`);
 
       const res = await fetch(url, {
         method: 'POST',
@@ -216,17 +213,13 @@ function App() {
         body: JSON.stringify(body),
       });
 
-      console.log('[SIDEPANEL] Fetch response status:', res.status);
-
       if (!res.ok) {
         const err = await res.json();
-        console.error('[SIDEPANEL] API Error Response:', err);
         throw new Error(err.error || 'Request failed');
       }
 
       // Handle Streaming Response
       if (useStreaming && res.body) {
-        console.log('[SIDEPANEL] Entering streaming response handler...');
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -250,20 +243,17 @@ function App() {
               if (event === 'thought') {
                 try {
                   const chunk = JSON.parse(dataStr);
-                  // Append to buffer for typewriter effect
                   thinkingBuffer.current += chunk;
                 } catch (e) { console.error('[SIDEPANEL] Parse thought error', e); }
               } else if (event === 'result') {
                 try {
                   const sessionData = JSON.parse(dataStr);
-                  console.log('[SIDEPANEL] Received final RESULT event.');
                   if (requestStartTime.current) {
                     setResponseTime((Date.now() - requestStartTime.current) / 1000);
                     requestStartTime.current = null;
                   }
                   setOptimisticMessages([]);
                   setSession(sessionData);
-                  // Do not clear displayedThinking; let sending=false hide it
                 } catch (e) { console.error('[SIDEPANEL] Parse result error', e); }
               } else if (event === 'error') {
                  const errData = JSON.parse(dataStr);
@@ -292,7 +282,7 @@ function App() {
       setDisplayedThinking('');
     } finally { 
       setSending(false); 
-    }
+    } 
   };
 
   const handleSend = () => sendMessage(input);
@@ -306,7 +296,7 @@ function App() {
         <div className="logo">FratGPT 2.0</div>
         <div className="mode-selector">
           {['FAST', 'REGULAR', 'EXPERT'].map(m => (
-            <button key={m} className={`mode-btn ${mode === m ? 'active' : ''}`} onClick={() => setMode(m as Mode)} disabled={sending || (m === 'EXPERT' && userPlan !== 'PRO' && userRole !== 'ADMIN')}>
+            <button key={m} className={`mode-btn ${mode === m ? 'active' : ''}`} onClick={() => setMode(m as Mode)} disabled={sending || (m === 'EXPERT' && userPlan !== 'PRO' && userRole !== 'ADMIN')}> 
               {m.charAt(0) + m.slice(1).toLowerCase()} {m === 'EXPERT' && userPlan !== 'PRO' && userRole !== 'ADMIN' && '🔒'}
             </button>
           ))}
@@ -336,11 +326,11 @@ function App() {
                 <div className="answer-box" style={{ maxWidth: '100%' }}>
                   {(() => {
                     const providerMsg = session.messages.find(m => m.provider?.toLowerCase() === selectedTab.toLowerCase() && m.role === 'ASSISTANT');
-                    const displayType = providerMsg?.questionType || msg.questionType;
+                    const displayMsg = providerMsg || msg;
+                    
                     return (
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280' }}>
                         {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
-                        {displayType && <div className="question-type">🏷️ {displayType.replace(/[-_]/g, ' ').toUpperCase()}</div>}
                       </div>
                     );
                   })()}
@@ -353,51 +343,48 @@ function App() {
                   </div>
                   {(() => {
                     const providerMsg = session.messages.find(m => m.provider?.toLowerCase() === selectedTab.toLowerCase() && m.role === 'ASSISTANT');
+                    const displayMsg = providerMsg || msg;
                     
-                    if (!providerMsg) return <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>No response</div>;
-
-                    const isMultipleChoice = providerMsg.questionType === 'MULTIPLE_CHOICE' && 
-                                           providerMsg.structuredAnswer?.content?.options && 
-                                           Array.isArray(providerMsg.structuredAnswer.content.options);
+                    if (!displayMsg) return <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>No response</div>;
 
                     return (
                       <>
-                        <div className="answer-label">Answer from {selectedTab.charAt(0).toUpperCase() + selectedTab.slice(1)}</div>
+                        <div className="answer-label">Final Answer</div>
+                        <div className="short-answer">
+                          <Latex>{String(displayMsg.shortAnswer || '')}</Latex>
+                        </div>
                         
-                        {isMultipleChoice ? (
-                          <div className="mc-options" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
-                            {providerMsg.structuredAnswer.content.options.map((opt: string, i: number) => {
-                              const choice = providerMsg.structuredAnswer.content.choice;
-                              const isSelected = opt.startsWith(choice + '.') || opt.startsWith(choice + ')') || opt === choice;
-                              return (
-                                <div key={i} style={{ 
-                                  padding: '8px 12px', 
-                                  borderRadius: '6px', 
-                                  background: isSelected ? '#ecfdf5' : '#f3f4f6',
-                                  border: isSelected ? '1px solid #10b981' : '1px solid transparent',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  fontSize: '14px'
-                                }}>
-                                  {isSelected && <span style={{ marginRight: '8px' }}>✅</span>}
-                                  {opt}
-                                </div>
-                              );
-                            })}
+                        {displayMsg.steps && displayMsg.steps.length > 0 && (
+                          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div className="answer-label" style={{ marginBottom: '4px' }}>Steps</div>
+                            {displayMsg.steps.map((step, sIdx) => (
+                               <div key={sIdx} style={{ 
+                                  background: '#f9fafb', 
+                                  border: '1px solid #e5e7eb', 
+                                  borderRadius: '8px', 
+                                  padding: '12px' 
+                               }}>
+                                 <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', color: '#374151' }}>
+                                   {step.title}
+                                 </div>
+                                 <div style={{ fontSize: '14px', lineHeight: '1.5', color: '#4b5563' }}>
+                                   <Latex>{String(step.content || '')}</Latex>
+                                 </div>
+                               </div>
+                            ))}
                           </div>
-                        ) : (
-                          <div className="short-answer"><Latex>{String(providerMsg.shortAnswer || '')}</Latex></div>
                         )}
                         
-                        {providerMsg.structuredAnswer?.explanation && (
-                          <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
-                            <details style={{ cursor: 'pointer' }}>
-                              <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Explanation</summary>
-                              <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
-                                <Latex>{String(providerMsg.structuredAnswer.explanation || '')}</Latex>
-                              </div>
-                            </details>
-                          </div>
+                        {/* Fallback Explanation for old format */}
+                        {!displayMsg.steps && displayMsg.structuredAnswer?.explanation && (
+                           <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
+                             <details style={{ cursor: 'pointer' }}>
+                               <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Detailed Explanation</summary>
+                               <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
+                                 <Latex>{String(displayMsg.structuredAnswer.explanation || '')}</Latex>
+                               </div>
+                             </details>
+                           </div>
                         )}
                       </>
                     );
@@ -407,42 +394,43 @@ function App() {
                 <div className="answer-box">
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280' }}>
                     {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
-                    {msg.questionType && <div className="question-type">🏷️ {msg.questionType.replace(/[-_]/g, ' ').toUpperCase()}</div>}
                   </div>
+                  
                   <div className="answer-label">Final Answer</div>
-                  {msg.questionType === 'MULTIPLE_CHOICE' && msg.structuredAnswer?.content?.options && Array.isArray(msg.structuredAnswer.content.options) ? (
-                    <div className="mc-options" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
-                      {msg.structuredAnswer.content.options.map((opt: string, i: number) => {
-                        const choice = msg.structuredAnswer.content.choice;
-                        const isSelected = opt.startsWith(choice + '.') || opt.startsWith(choice + ')') || opt === choice;
-                        return (
-                          <div key={i} style={{ 
-                            padding: '8px 12px', 
-                            borderRadius: '6px', 
-                            background: isSelected ? '#ecfdf5' : '#f3f4f6',
-                            border: isSelected ? '1px solid #10b981' : '1px solid transparent',
-                            display: 'flex',
-                            alignItems: 'center',
-                            fontSize: '14px'
-                          }}>
-                            {isSelected && <span style={{ marginRight: '8px' }}>✅</span>}
-                            {opt}
-                          </div>
-                        );
-                      })}
-                    </div>
+                  <div className="short-answer">
+                     <Latex>{String(msg.shortAnswer || '')}</Latex>
+                  </div>
+
+                  {msg.steps && msg.steps.length > 0 ? (
+                      <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div className="answer-label" style={{ marginBottom: '4px' }}>Steps</div>
+                        {msg.steps.map((step, sIdx) => (
+                           <div key={sIdx} style={{ 
+                              background: '#f9fafb', 
+                              border: '1px solid #e5e7eb', 
+                              borderRadius: '8px', 
+                              padding: '12px' 
+                           }}>
+                             <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', color: '#374151' }}>
+                               {step.title}
+                             </div>
+                             <div style={{ fontSize: '14px', lineHeight: '1.5', color: '#4b5563' }}>
+                               <Latex>{String(step.content || '')}</Latex>
+                             </div>
+                           </div>
+                        ))}
+                      </div>
                   ) : (
-                    <div className="short-answer"><Latex>{String(msg.shortAnswer || '')}</Latex></div>
-                  )}
-                  {msg.structuredAnswer?.explanation && (
-                    <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
-                      <details style={{ cursor: 'pointer' }}>
-                        <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Explanation</summary>
-                        <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
-                          <Latex>{String(msg.structuredAnswer.explanation || '')}</Latex>
-                        </div>
-                      </details>
-                    </div>
+                    msg.structuredAnswer?.explanation && (
+                      <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
+                        <details style={{ cursor: 'pointer' }}>
+                          <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Explanation</summary>
+                          <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
+                            <Latex>{String(msg.structuredAnswer.explanation || '')}</Latex>
+                          </div>
+                        </details>
+                      </div>
+                    )
                   )}
                 </div>
               ) : (
