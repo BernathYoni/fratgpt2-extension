@@ -352,29 +352,67 @@ function App() {
 
                     return (
                       <>
-                        <div className="answer-label">Final Answer</div>
-                        <div className="short-answer">
-                          <Latex>{String(displayMsg.shortAnswer || '')}</Latex>
+                        <div style={{ marginBottom: '16px' }}>
+                          <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
+                            Final Answer
+                          </div>
+                          <div className="short-answer" style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
+                            <Latex>{String(displayMsg.shortAnswer || '')}</Latex>
+                          </div>
                         </div>
                         
                         {steps && steps.length > 0 && (
-                          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div className="answer-label" style={{ marginBottom: '4px' }}>Steps</div>
-                            {steps.map((step: any, sIdx: number) => (
-                               <div key={sIdx} style={{ 
-                                  background: '#f9fafb', 
-                                  border: '1px solid #e5e7eb', 
-                                  borderRadius: '8px', 
-                                  padding: '12px' 
-                               }}>
-                                 <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', color: '#374151' }}>
-                                   {step.title}
+                          <div style={{ marginTop: '20px' }}>
+                            <div style={{
+                              fontSize: '14px',
+                              fontWeight: 600,
+                              color: '#374151',
+                              marginBottom: '12px',
+                              paddingBottom: '8px',
+                              borderBottom: '1px solid #e5e7eb'
+                            }}>
+                              Explanation
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                              {steps.map((step: any, sIdx: number) => (
+                                 <div key={sIdx} style={{ position: 'relative', paddingLeft: '16px' }}>
+                                   {/* Step Number/Line */}
+                                   <div style={{ 
+                                     position: 'absolute', 
+                                     left: '0', 
+                                     top: '6px', 
+                                     bottom: sIdx === steps.length - 1 ? 'auto' : '-16px', 
+                                     width: '2px', 
+                                     background: sIdx === steps.length - 1 ? 'transparent' : '#e5e7eb' 
+                                   }}></div>
+                                   <div style={{ 
+                                     position: 'absolute', 
+                                     left: '-4px', 
+                                     top: '6px', 
+                                     width: '10px', 
+                                     height: '10px', 
+                                     borderRadius: '50%', 
+                                     background: '#3b82f6',
+                                     border: '2px solid white'
+                                   }}></div>
+
+                                   <div style={{ 
+                                      background: 'white', 
+                                      border: '1px solid #e5e7eb', 
+                                      borderRadius: '8px', 
+                                      padding: '12px',
+                                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                   }}>
+                                     <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '4px', color: '#1f2937' }}>
+                                       {step.title}
+                                     </div>
+                                     <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#4b5563' }}>
+                                       <Latex>{String(step.content || '')}</Latex>
+                                     </div>
+                                   </div>
                                  </div>
-                                 <div style={{ fontSize: '14px', lineHeight: '1.5', color: '#4b5563' }}>
-                                   <Latex>{String(step.content || '')}</Latex>
-                                 </div>
-                               </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
                         )}
                         
@@ -399,9 +437,13 @@ function App() {
                     {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
                   </div>
                   
-                  <div className="answer-label">Final Answer</div>
-                  <div className="short-answer">
-                     <Latex>{String(msg.shortAnswer || '')}</Latex>
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>
+                      Final Answer
+                    </div>
+                    <div className="short-answer" style={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
+                       <Latex>{String(msg.shortAnswer || '')}</Latex>
+                    </div>
                   </div>
 
                   {/* Logic for default view steps */}
@@ -410,39 +452,61 @@ function App() {
                      
                      if (steps && steps.length > 0) {
                        return (
-                          <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div className="answer-label" style={{ marginBottom: '4px' }}>Steps</div>
-                            {steps.map((step: any, sIdx: number) => (
-                               <div key={sIdx} style={{ 
-                                  background: '#f9fafb', 
-                                  border: '1px solid #e5e7eb', 
-                                  borderRadius: '8px', 
-                                  padding: '12px' 
-                               }}>
-                                 <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', color: '#374151' }}>
-                                   {step.title}
+                          <div style={{ marginTop: '20px' }}>
+                            <div style={{ 
+                              fontSize: '14px', 
+                              fontWeight: 600, 
+                              color: '#374151', 
+                              marginBottom: '12px',
+                              paddingBottom: '8px',
+                              borderBottom: '1px solid #e5e7eb'
+                            }}>
+                              Explanation
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                              {steps.map((step: any, sIdx: number) => (
+                                 <div key={sIdx} style={{ position: 'relative', paddingLeft: '16px' }}>
+                                   {/* Step Number/Line */}
+                                   <div style={{ 
+                                     position: 'absolute', 
+                                     left: '0', 
+                                     top: '6px', 
+                                     bottom: sIdx === steps.length - 1 ? 'auto' : '-16px', 
+                                     width: '2px', 
+                                     background: sIdx === steps.length - 1 ? 'transparent' : '#e5e7eb' 
+                                   }}></div>
+                                   <div style={{ 
+                                     position: 'absolute', 
+                                     left: '-4px', 
+                                     top: '6px', 
+                                     width: '10px', 
+                                     height: '10px', 
+                                     borderRadius: '50%', 
+                                     background: '#3b82f6',
+                                     border: '2px solid white'
+                                   }}></div>
+
+                                   <div style={{ 
+                                      background: 'white', 
+                                      border: '1px solid #e5e7eb', 
+                                      borderRadius: '8px', 
+                                      padding: '12px',
+                                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                   }}>
+                                     <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '4px', color: '#1f2937' }}>
+                                       {step.title}
+                                     </div>
+                                     <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#4b5563' }}>
+                                       <Latex>{String(step.content || '')}</Latex>
+                                     </div>
+                                   </div>
                                  </div>
-                                 <div style={{ fontSize: '14px', lineHeight: '1.5', color: '#4b5563' }}>
-                                   <Latex>{String(step.content || '')}</Latex>
-                                 </div>
-                               </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
                        );
                      } else if (msg.structuredAnswer?.explanation) {
-                       return (
-                          <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
-                            <details style={{ cursor: 'pointer' }}>
-                              <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Explanation</summary>
-                              <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
-                                <Latex>{String(msg.structuredAnswer.explanation || '')}</Latex>
-                              </div>
-                            </details>
-                          </div>
-                       );
-                     }
-                     return null;
-                  })()}
+
                 </div>
               ) : (
                 <div className="message-bubble">{msg.content}</div>
