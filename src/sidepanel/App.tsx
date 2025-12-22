@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SolvelyResult } from './components/SolvelyResult';
 
 const API_URL = 'https://api.fratgpt.co';
 
@@ -14,12 +13,11 @@ interface Message {
   provider?: string;
   questionType?: string;
   structuredAnswer?: any;
-  solvelyResponse?: any; // NEW: Solvely format
   attachments?: Array<{ imageData?: string; source: string }>;
   metadata?: { error?: string };
   providers?: Array<{
     provider: string;
-    response: { shortAnswer: string; solvelyResponse?: any };
+    response: { shortAnswer: string };
   }>;
 }
 
@@ -333,50 +331,117 @@ function App() {
               {msg.attachments?.map((att, i) => <img key={i} src={att.imageData} className="message-image" alt="attachment" />)}
               
               {msg.role === 'ASSISTANT' && (session.mode === 'EXPERT' || session.mode === 'REGULAR') ? (
-                <div className="answer-box" style={{ maxWidth: '100%', padding: '0', background: 'transparent', boxShadow: 'none' }}>
+                <div className="answer-box" style={{ maxWidth: '100%' }}>
                   {(() => {
                     const providerMsg = session.messages.find(m => m.provider?.toLowerCase() === selectedTab.toLowerCase() && m.role === 'ASSISTANT');
-                    const displayMsg = providerMsg || msg;
+                    const displayType = providerMsg?.questionType || msg.questionType;
+                    return (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280' }}>
+                        {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
+                        {displayType && <div className="question-type">🏷️ {displayType.replace(/[-_]/g, ' ').toUpperCase()}</div>}
+                      </div>
+                    );
+                  })()}
+                  <div className="tabs">
+                    {['gemini', 'openai', 'claude'].map(t => (
+                      <button key={t} className={`tab ${selectedTab === t ? 'active' : ''}`} onClick={() => { logInteraction('TAB_VIEW', { provider: t }); setSelectedTab(t as Tab); }}>
+                        {t === 'openai' ? 'ChatGPT' : t.charAt(0).toUpperCase() + t.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                  {(() => {
+                    const providerMsg = session.messages.find(m => m.provider?.toLowerCase() === selectedTab.toLowerCase() && m.role === 'ASSISTANT');
                     
+                    if (!providerMsg) return <div style={{ padding: '20px', textAlign: 'center', color: '#6b7280' }}>No response</div>;
+
+                    const isMultipleChoice = providerMsg.questionType === 'MULTIPLE_CHOICE' && 
+                                           providerMsg.structuredAnswer?.content?.options && 
+                                           Array.isArray(providerMsg.structuredAnswer.content.options);
+
                     return (
                       <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280', padding: '0 4px' }}>
-                          {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
-                        </div>
-                        <div className="tabs mb-3">
-                          {['gemini', 'openai', 'claude'].map(t => (
-                            <button key={t} className={`tab ${selectedTab === t ? 'active' : ''}`} onClick={() => { logInteraction('TAB_VIEW', { provider: t }); setSelectedTab(t as Tab); }}>
-                              {t === 'openai' ? 'ChatGPT' : t.charAt(0).toUpperCase() + t.slice(1)}
-                            </button>
-                          ))}
-                        </div>
+                        <div className="answer-label">Answer from {selectedTab.charAt(0).toUpperCase() + selectedTab.slice(1)}</div>
                         
-                        {displayMsg.solvelyResponse ? (
-                           <SolvelyResult solvelyResponse={displayMsg.solvelyResponse} />
+                        {isMultipleChoice ? (
+                          <div className="mc-options" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+                            {providerMsg.structuredAnswer.content.options.map((opt: string, i: number) => {
+                              const choice = providerMsg.structuredAnswer.content.choice;
+                              const isSelected = opt.startsWith(choice + '.') || opt.startsWith(choice + ')') || opt === choice;
+                              return (
+                                <div key={i} style={{ 
+                                  padding: '8px 12px', 
+                                  borderRadius: '6px', 
+                                  background: isSelected ? '#ecfdf5' : '#f3f4f6',
+                                  border: isSelected ? '1px solid #10b981' : '1px solid transparent',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  fontSize: '14px'
+                                }}>
+                                  {isSelected && <span style={{ marginRight: '8px' }}>✅</span>}
+                                  {opt}
+                                </div>
+                              );
+                            })}
+                          </div>
                         ) : (
-                           /* Fallback for old messages or failures */
-                           <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-                             <div className="short-answer font-bold text-lg mb-2">{displayMsg.shortAnswer}</div>
-                             <div className="text-sm text-slate-600">{displayMsg.content}</div>
-                           </div>
+                          <div className="short-answer">{providerMsg.shortAnswer}</div>
+                        )}
+                        
+                        {providerMsg.structuredAnswer?.explanation && (
+                          <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
+                            <details style={{ cursor: 'pointer' }}>
+                              <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Explanation</summary>
+                              <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
+                                {providerMsg.structuredAnswer.explanation}
+                              </div>
+                            </details>
+                          </div>
                         )}
                       </>
                     );
                   })()}
                 </div>
               ) : msg.role === 'ASSISTANT' ? (
-                <div className="answer-box" style={{ maxWidth: '100%', padding: '0', background: 'transparent', boxShadow: 'none' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280', padding: '0 4px' }}>
+                <div className="answer-box">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280' }}>
                     {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
+                    {msg.questionType && <div className="question-type">🏷️ {msg.questionType.replace(/[-_]/g, ' ').toUpperCase()}</div>}
                   </div>
-                   {msg.solvelyResponse ? (
-                      <SolvelyResult solvelyResponse={msg.solvelyResponse} />
-                   ) : (
-                      <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-                        <div className="short-answer font-bold text-lg mb-2">{msg.shortAnswer}</div>
-                        <div className="text-sm text-slate-600">{msg.content}</div>
-                      </div>
-                   )}
+                  <div className="answer-label">Final Answer</div>
+                  {msg.questionType === 'MULTIPLE_CHOICE' && msg.structuredAnswer?.content?.options && Array.isArray(msg.structuredAnswer.content.options) ? (
+                    <div className="mc-options" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
+                      {msg.structuredAnswer.content.options.map((opt: string, i: number) => {
+                        const choice = msg.structuredAnswer.content.choice;
+                        const isSelected = opt.startsWith(choice + '.') || opt.startsWith(choice + ')') || opt === choice;
+                        return (
+                          <div key={i} style={{ 
+                            padding: '8px 12px', 
+                            borderRadius: '6px', 
+                            background: isSelected ? '#ecfdf5' : '#f3f4f6',
+                            border: isSelected ? '1px solid #10b981' : '1px solid transparent',
+                            display: 'flex',
+                            alignItems: 'center',
+                            fontSize: '14px'
+                          }}>
+                            {isSelected && <span style={{ marginRight: '8px' }}>✅</span>}
+                            {opt}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="short-answer">{msg.shortAnswer}</div>
+                  )}
+                  {msg.structuredAnswer?.explanation && (
+                    <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
+                      <details style={{ cursor: 'pointer' }}>
+                        <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Explanation</summary>
+                        <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
+                          {msg.structuredAnswer.explanation}
+                        </div>
+                      </details>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="message-bubble">{msg.content}</div>
