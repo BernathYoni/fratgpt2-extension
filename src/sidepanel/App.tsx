@@ -506,7 +506,19 @@ function App() {
                           </div>
                        );
                      } else if (msg.structuredAnswer?.explanation) {
-
+                       return (
+                          <div style={{ marginTop: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '8px' }}>
+                            <details style={{ cursor: 'pointer' }}>
+                              <summary style={{ fontSize: '13px', fontWeight: 600, color: '#4b5563', outline: 'none' }}>Explanation</summary>
+                              <div style={{ marginTop: '8px', fontSize: '13px', lineHeight: '1.5', color: '#374151' }}>
+                                <Latex>{String(msg.structuredAnswer.explanation || '')}</Latex>
+                              </div>
+                            </details>
+                          </div>
+                       );
+                     }
+                     return null;
+                  })()}
                 </div>
               ) : (
                 <div className="message-bubble">{msg.content}</div>
