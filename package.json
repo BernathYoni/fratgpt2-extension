@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "browser-image-compression": "^2.0.2",
+    "function-plot": "^1.25.1",
     "katex": "^0.16.27",
+    "mermaid": "^11.12.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-latex-next": "^3.0.0"

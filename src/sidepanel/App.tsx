@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import 'katex/dist/katex.min.css';
 import Latex from 'react-latex-next';
+import { GraphVisual } from './components/GraphVisual';
+import { DiagramVisual } from './components/DiagramVisual';
 
 const API_URL = 'https://api.fratgpt.co';
 
@@ -370,12 +372,17 @@ function App() {
                                          <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '4px', color: '#1f2937' }}>
                                            {sIdx + 1}. {step.title}
                                          </div>
-                                         <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#4b5563', paddingLeft: '18px' }}>
-                                           <Latex>{String(step.content || '')}</Latex>
-                                         </div>
-                                       </div>
-                                    ))}
-                                  </div>
+                                                                              <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#4b5563', paddingLeft: '18px' }}>
+                                                                                <Latex>{String(step.content || '')}</Latex>
+                                                                              </div>
+                                                                              {step.visual && (
+                                                                                <div style={{ paddingLeft: '18px' }}>
+                                                                                  {step.visual.type === 'graph' && <GraphVisual data={step.visual.data} caption={step.visual.caption} />}
+                                                                                  {step.visual.type === 'diagram' && <DiagramVisual data={step.visual.data} caption={step.visual.caption} />}
+                                                                                </div>
+                                                                              )}
+                                                                            </div>
+                                                                         ))}                                  </div>
                                 </div>
                               );
                             } else if (displayMsg.structuredAnswer?.explanation) {
@@ -433,6 +440,12 @@ function App() {
                                    <div style={{ fontSize: '14px', lineHeight: '1.6', color: '#4b5563', paddingLeft: '18px' }}>
                                      <Latex>{String(step.content || '')}</Latex>
                                    </div>
+                                   {step.visual && (
+                                     <div style={{ paddingLeft: '18px' }}>
+                                       {step.visual.type === 'graph' && <GraphVisual data={step.visual.data} caption={step.visual.caption} />}
+                                       {step.visual.type === 'diagram' && <DiagramVisual data={step.visual.data} caption={step.visual.caption} />}
+                                     </div>
+                                   )}
                                  </div>
                               ))}
                             </div>
