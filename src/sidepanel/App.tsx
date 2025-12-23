@@ -5,7 +5,7 @@ import { GraphVisual } from './components/GraphVisual';
 
 const API_URL = 'https://api.fratgpt.co';
 
-type Mode = 'REGULAR' | 'FAST' | 'EXPERT';
+type Mode = 'FAST' | 'EXPERT';
 type Tab = 'consensus' | 'gemini' | 'openai' | 'claude';
 
 interface Message {
@@ -37,7 +37,7 @@ function App() {
   const [userPlan, setUserPlan] = useState<'FREE' | 'BASIC' | 'PRO' | null>(null);
   const [userRole, setUserRole] = useState<'USER' | 'ADMIN' | null>(null);
 
-  const [mode, setMode] = useState<Mode>('REGULAR');
+  const [mode, setMode] = useState<Mode>('FAST');
   const [session, setSession] = useState<ChatSession | null>(null);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -293,17 +293,16 @@ function App() {
 
   return (
     <div className="app">
-      <div className="header">
-        <div className="logo">FratGPT 2.0</div>
-        <div className="mode-selector">
-          {['FAST', 'REGULAR', 'EXPERT'].map(m => (
-            <button key={m} className={`mode-btn ${mode === m ? 'active' : ''}`} onClick={() => setMode(m as Mode)} disabled={sending || (m === 'EXPERT' && userPlan !== 'PRO' && userRole !== 'ADMIN')}> 
-              {m.charAt(0) + m.slice(1).toLowerCase()} {m === 'EXPERT' && userPlan !== 'PRO' && userRole !== 'ADMIN' && '🔒'}
-            </button>
-          ))}
-        </div>
-        <div className="action-buttons">
-          <button className="btn" onClick={handleScreen} disabled={sending}>📸 Screen</button>
+            <div className="header">
+              <div className="logo">FratGPT 2.0</div>
+              <div className="mode-selector">
+                {['FAST', 'EXPERT'].map(m => (
+                  <button key={m} className={`mode-btn ${mode === m ? 'active' : ''}`} onClick={() => setMode(m as Mode)} disabled={sending || (m === 'EXPERT' && userPlan !== 'PRO' && userRole !== 'ADMIN')}>
+                    {m.charAt(0) + m.slice(1).toLowerCase()} {m === 'EXPERT' && userPlan !== 'PRO' && userRole !== 'ADMIN' && '🔒'}
+                  </button>
+                ))}
+              </div>
+              <div className="action-buttons">          <button className="btn" onClick={handleScreen} disabled={sending}>📸 Screen</button>
           <button className="btn" onClick={handleSnip} disabled={sending}>✂️ Snip</button>
         </div>
       </div>
@@ -314,7 +313,7 @@ function App() {
 
         {/* Existing Messages */}
         {session?.messages.map((msg, idx) => {
-          if ((session.mode === 'EXPERT' || session.mode === 'REGULAR') && msg.role === 'ASSISTANT') {
+          if (session.mode === 'EXPERT' && msg.role === 'ASSISTANT') {
             const firstAssistantMsg = session.messages.find(m => m.role === 'ASSISTANT');
             if (msg.id !== firstAssistantMsg?.id) return null;
           }
@@ -323,7 +322,7 @@ function App() {
             <div key={idx} className={`message ${msg.role.toLowerCase()}`}>
               {msg.attachments?.map((att, i) => <img key={i} src={att.imageData} className="message-image" alt="attachment" />)}
               
-              {msg.role === 'ASSISTANT' && (session.mode === 'EXPERT' || session.mode === 'REGULAR') ? (
+              {msg.role === 'ASSISTANT' && session.mode === 'EXPERT' ? (
                 <div style={{ width: '100%', marginTop: '8px' }}>
                   {(() => {
                     const providerMsg = session.messages.find(m => m.provider?.toLowerCase() === selectedTab.toLowerCase() && m.role === 'ASSISTANT');
