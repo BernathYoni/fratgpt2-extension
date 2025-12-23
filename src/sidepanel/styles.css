@@ -23,8 +23,7 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  max-height: 100vh;
-  overflow: hidden;
+  /* Removed max-height and overflow: hidden to prevent double scrollbars */
 }
 
 /* Header */
