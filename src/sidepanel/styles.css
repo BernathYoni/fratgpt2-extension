@@ -23,7 +23,7 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  /* Removed max-height and overflow: hidden to prevent double scrollbars */
+  overflow: hidden; /* Lock header/footer and only allow middle content to scroll */
 }
 
 /* Header */
