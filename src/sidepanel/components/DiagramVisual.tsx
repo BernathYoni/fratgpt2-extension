@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
 
 interface DiagramVisualProps {
@@ -8,33 +8,60 @@ interface DiagramVisualProps {
 
 export const DiagramVisual: React.FC<DiagramVisualProps> = ({ data, caption }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || !data) return;
+    setHasError(false);
 
     mermaid.initialize({ 
       startOnLoad: false, 
       theme: 'default',
       securityLevel: 'loose',
+      suppressErrorRendering: true // IMPORTANT: Disable default bomb icon
     });
 
     const renderDiagram = async () => {
       try {
         const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`;
-        const { svg } = await mermaid.render(id, data);
+        // Clean up common AI syntax mistakes
+        let cleanData = data
+          .replace(/```mermaid/g, '')
+          .replace(/```/g, '')
+          .trim();
+          
+        const { svg } = await mermaid.render(id, cleanData);
         if (containerRef.current) {
           containerRef.current.innerHTML = svg;
         }
       } catch (error) {
         console.error('Mermaid rendering failed:', error);
-        if (containerRef.current) {
-          containerRef.current.innerHTML = `<div style="color:red; font-size:12px;">Failed to render diagram</div>`;
-        }
+        setHasError(true);
       }
     };
 
     renderDiagram();
   }, [data]);
+
+  if (hasError) {
+    return (
+      <div className="diagram-error" style={{ 
+        marginTop: '12px', 
+        padding: '12px', 
+        background: '#fff5f5', 
+        border: '1px solid #feb2b2', 
+        borderRadius: '8px',
+        color: '#c53030',
+        fontSize: '12px',
+        fontFamily: 'monospace'
+      }}>
+        <div>Unable to visualize diagram.</div>
+        <div style={{ marginTop: '4px', fontSize: '10px', opacity: 0.8 }}>
+          {data.substring(0, 100)}...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="diagram-container" style={{ marginTop: '12px', marginBottom: '12px', textAlign: 'center' }}>
