@@ -297,8 +297,8 @@ function App() {
               <div className="logo">FratGPT 2.0</div>
               <div className="mode-selector">
                 {['FAST', 'EXPERT'].map(m => (
-                  <button key={m} className={`mode-btn ${mode === m ? 'active' : ''}`} onClick={() => setMode(m as Mode)} disabled={sending || (m === 'EXPERT' && userPlan !== 'PRO' && userRole !== 'ADMIN')}>
-                    {m.charAt(0) + m.slice(1).toLowerCase()} {m === 'EXPERT' && userPlan !== 'PRO' && userRole !== 'ADMIN' && '🔒'}
+                  <button key={m} className={`mode-btn ${mode === m ? 'active' : ''}`} onClick={() => setMode(m as Mode)} disabled={sending || (m === 'EXPERT' && !['PRO', 'WEEKLY', 'MONTHLY', 'YEARLY'].includes(userPlan || '') && userRole !== 'ADMIN')}>
+                    {m.charAt(0) + m.slice(1).toLowerCase()} {m === 'EXPERT' && !['PRO', 'WEEKLY', 'MONTHLY', 'YEARLY'].includes(userPlan || '') && userRole !== 'ADMIN' && '🔒'}
                   </button>
                 ))}
               </div>
