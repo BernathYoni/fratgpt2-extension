@@ -309,7 +309,7 @@ async function cropImageWithOffscreenCanvas(
 console.log('='.repeat(80));
 console.log('[BACKGROUND] ✅ ALL EVENT LISTENERS REGISTERED');
 console.log('[BACKGROUND] 🎧 Now listening for:');
-console.log('[BACKGROUND]    - Messages from fratgpt.co website');
+console.log('[BACKGROUND]    - Messages from betterhomework2-frontend-production.up.railway.app website');
 console.log('[BACKGROUND]    - Messages from sidepanel');
 console.log('[BACKGROUND]    - Messages from content scripts');
 console.log('[BACKGROUND]    - Storage changes');

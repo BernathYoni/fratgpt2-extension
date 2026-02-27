@@ -14,8 +14,7 @@
   ],
   "externally_connectable": {
     "matches": [
-      "https://fratgpt.co/*",
-      "https://*.fratgpt.co/*"
+      "https://betterhomework2-frontend-production.up.railway.app/*"
     ]
   },
   "background": {

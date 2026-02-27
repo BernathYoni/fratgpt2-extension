@@ -7,7 +7,7 @@ console.log('='.repeat(80));
 
 // AUTH SYNC BRIDGE: Listen for messages from website via window.postMessage
 window.addEventListener('message', (event) => {
-  // Only accept messages from same origin (fratgpt.co)
+  // Only accept messages from same origin (betterhomework2-frontend-production.up.railway.app)
   if (event.origin !== window.location.origin) {
     return;
   }

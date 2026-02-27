@@ -3,7 +3,7 @@ import 'katex/dist/katex.min.css';
 import Latex from 'react-latex-next';
 import { GraphVisual } from './components/GraphVisual';
 
-const API_URL = 'https://api.fratgpt.co';
+const API_URL = 'https://betterhomework2-backend-production.up.railway.app';
 
 type Mode = 'FAST' | 'EXPERT';
 type Tab = 'consensus' | 'gemini' | 'openai' | 'claude';
@@ -18,10 +18,26 @@ interface Message {
   structuredAnswer?: any;
   steps?: Array<{ title: string; content: string }>; // NEW field
   attachments?: Array<{ imageData?: string; source: string }>;
-  metadata?: { error?: string };
+  metadata?: {
+    error?: string;
+    messageKind?: 'FOLLOW_UP' | 'SOLVE';
+    responseStyle?: 'SIMPLE' | 'STRUCTURED';
+    providerResponses?: Array<{
+      provider: string;
+      response: {
+        shortAnswer: string;
+        steps?: Array<{ title: string; content: string }>;
+        structuredAnswer?: any;
+      };
+    }>;
+  };
   providers?: Array<{ 
     provider: string;
-    response: { shortAnswer: string; steps?: Array<{ title: string; content: string }> };
+    response: {
+      shortAnswer: string;
+      steps?: Array<{ title: string; content: string }>;
+      structuredAnswer?: any;
+    };
   }>;
 }
 
@@ -206,6 +222,13 @@ function App() {
       if (imageData) { body.imageData = imageData; body.captureSource = captureSource; }
       if (sourceUrl) body.sourceUrl = sourceUrl;
 
+      if (session && !isNewCapture) {
+        body.responseStyle = 'SIMPLE';
+        if (session.mode === 'EXPERT') {
+          body.followUpProvider = selectedTab === 'openai' || selectedTab === 'claude' ? selectedTab : 'gemini';
+        }
+      }
+
       requestStartTime.current = Date.now();
 
       const res = await fetch(url, {
@@ -289,12 +312,11 @@ function App() {
   const handleSend = () => sendMessage(input);
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } };
 
-  if (!token) return <div className="auth-container"><h2>Please Log In</h2><button className="btn" onClick={() => window.open('https://fratgpt.co/login')}>Log In</button></div>;
+  if (!token) return <div className="auth-container"><h2>Please Log In</h2><button className="btn" onClick={() => window.open('https://betterhomework2-frontend-production.up.railway.app/login')}>Log In</button></div>;
 
   return (
     <div className="app">
             <div className="header">
-              <div className="logo">FratGPT 2.0</div>
               <div className="mode-selector">
                 {['FAST', 'EXPERT'].map(m => (
                   <button key={m} className={`mode-btn ${mode === m ? 'active' : ''}`} onClick={() => setMode(m as Mode)} disabled={sending || (m === 'EXPERT' && !['PRO', 'WEEKLY', 'MONTHLY', 'YEARLY'].includes(userPlan || '') && userRole !== 'ADMIN')}>
@@ -313,20 +335,30 @@ function App() {
 
         {/* Existing Messages */}
         {session?.messages.map((msg, idx) => {
-          if (session.mode === 'EXPERT' && msg.role === 'ASSISTANT') {
-            const firstAssistantMsg = session.messages.find(m => m.role === 'ASSISTANT');
-            if (msg.id !== firstAssistantMsg?.id) return null;
-          }
+          const isSimpleFollowUp = msg.role === 'ASSISTANT' && (msg.metadata?.messageKind === 'FOLLOW_UP' || msg.metadata?.responseStyle === 'SIMPLE');
+          const hasProviderPayload = !!(msg.providers?.length || msg.metadata?.providerResponses?.length);
+          const isExpertComparisonCard = msg.role === 'ASSISTANT' && session.mode === 'EXPERT' && !isSimpleFollowUp && (msg.provider === 'CONSENSUS' || hasProviderPayload);
 
           return (
             <div key={idx} className={`message ${msg.role.toLowerCase()}`}>
               {msg.attachments?.map((att, i) => <img key={i} src={att.imageData} className="message-image" alt="attachment" />)}
               
-              {msg.role === 'ASSISTANT' && session.mode === 'EXPERT' ? (
+              {isExpertComparisonCard ? (
                 <div style={{ width: '100%', marginTop: '8px' }}>
                   {(() => {
-                    const providerMsg = session.messages.find(m => m.provider?.toLowerCase() === selectedTab.toLowerCase() && m.role === 'ASSISTANT');
-                    const displayMsg = providerMsg || msg;
+                    const providerFromPayload = (msg.providers || msg.metadata?.providerResponses || [])
+                      .find(p => p.provider?.toLowerCase() === selectedTab.toLowerCase());
+                    const providerMsg = session.messages.find(
+                      m => m.provider?.toLowerCase() === selectedTab.toLowerCase() && m.role === 'ASSISTANT' && m.metadata?.messageKind !== 'FOLLOW_UP'
+                    );
+                    const displayMsg = providerFromPayload
+                      ? {
+                          ...msg,
+                          shortAnswer: providerFromPayload.response.shortAnswer,
+                          steps: providerFromPayload.response.steps,
+                          structuredAnswer: providerFromPayload.response.structuredAnswer,
+                        }
+                      : (providerMsg || msg);
                     
                     return (
                       <>
@@ -399,6 +431,9 @@ function App() {
                   })()}
                 </div>
               ) : msg.role === 'ASSISTANT' ? (
+                isSimpleFollowUp ? (
+                  <div className="message-bubble">{msg.content}</div>
+                ) : (
                 <div style={{ width: '100%', marginTop: '8px', padding: '0 4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '12px', color: '#6b7280' }}>
                     {responseTime !== null && <div className="timer">⏱️ {responseTime.toFixed(1)}s</div>}
@@ -458,6 +493,7 @@ function App() {
                      return null;
                   })()}
                 </div>
+                )
               ) : (
                 <div className="message-bubble">{msg.content}</div>
               )}
